@@ -107,12 +107,12 @@ const runtimeSchemaStatements = [
     id TEXT PRIMARY KEY NOT NULL, workId TEXT NOT NULL, sequence INTEGER NOT NULL, location TEXT NOT NULL, contentText TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS "ReferencePassage_workId_sequence_idx" ON "ReferencePassage" (workId, sequence)`,
-  `CREATE TABLE IF NOT EXISTS "ReferencePassageSearch" (id TEXT PRIMARY KEY NOT NULL, workId TEXT NOT NULL, contentText TEXT NOT NULL)`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS "ReferencePassageSearch" USING fts5(id UNINDEXED, workId UNINDEXED, contentText)`,
 ];
 
 export async function ensureSenderoSeeded() {
   if (!seedPromise) {
-    seedPromise = seedFromBackup().catch((error) => {
+    seedPromise = verifyImportedData().catch((error) => {
       seedPromise = null;
       throw error;
     });
@@ -130,10 +130,11 @@ export async function ensureReferenceLibrary() {
   return referenceLibraryPromise;
 }
 
-async function seedFromBackup() {
+async function verifyImportedData() {
+  const db = getSenderoDb();
   await ensureRuntimeSchema();
-  const existing = await getSenderoDb().prepare('SELECT COUNT(*) AS count FROM "User"').first<{ count: number }>();
-  if (!Number(existing?.count ?? 0)) throw new Error("Dados do Sendero ainda não migrados. Execute a importação privada antes de publicar.");
+  const existing = await db.prepare('SELECT COUNT(*) AS count FROM "User"').first<{ count: number }>();
+  if (!Number(existing?.count ?? 0)) throw new Error("Dados do Sendero ainda não migrados. Importe o backup privado antes de usar o app.");
 }
 
 async function ensureRuntimeSchema() {

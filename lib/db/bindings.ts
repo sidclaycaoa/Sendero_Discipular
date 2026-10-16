@@ -1,44 +1,24 @@
-import { createClient, type Client, type InArgs, type InStatement } from "@libsql/client";
+const SENDERO_DB_KEY = "__senderoD1Binding";
 
-// Preserve the app's SQLite queries while moving to an independently owned database.
-let client: Client | undefined;
-function connection(): Client {
-  if (!client) {
-    const url = process.env.TURSO_DATABASE_URL;
-    const authToken = process.env.TURSO_AUTH_TOKEN;
-    if (!url || !authToken) throw new Error("Banco do Sendero não configurado.");
-    client = createClient({ url, authToken });
-  }
-  return client;
-}
-
-type Value = string | number | null;
-type Statement = InStatement & { sql: string; args: InArgs };
-function prepared(sql: string, args: Value[] = []): D1PreparedStatement & { statement: Statement } {
-  const statement: Statement = { sql, args };
-  return {
-    statement,
-    bind(...values: Value[]) { return prepared(sql, values); },
-    async all<T>() {
-      const result = await connection().execute(statement);
-      return { results: result.rows.map(row => ({ ...row }) as T), success: true, meta: { changes: result.rowsAffected } };
-    },
-    async first<T>(column?: string) {
-      const row = (await connection().execute(statement)).rows[0];
-      return row ? (column ? row[column] : { ...row }) as T : null;
-    },
-    async run<T>() {
-      const result = await connection().execute(statement);
-      return { results: result.rows.map(row => ({ ...row }) as T), success: true, meta: { changes: result.rowsAffected } };
-    },
-  };
-}
-
-const database: D1Database = {
-  prepare: (sql: string) => prepared(sql),
-  async batch<T>(statements: D1PreparedStatement[]) {
-    const results = await connection().batch(statements.map(s => (s as ReturnType<typeof prepared>).statement), "write");
-    return results.map(result => ({ results: result.rows.map(row => ({ ...row }) as T), success: true, meta: { changes: result.rowsAffected } }));
-  },
+type SenderoRuntime = typeof globalThis & {
+  [SENDERO_DB_KEY]?: D1Database;
 };
-export function getSenderoDb(): D1Database { return database; }
+
+/**
+ * Makes the request-scoped Sites D1 binding available to the app router.
+ *
+ * The worker entry receives bindings directly from Cloudflare. Keeping the
+ * binding on the isolate global avoids a `cloudflare:workers` module import,
+ * which also lets the Sites artifact validator load the compiled worker.
+ */
+export function setSenderoDb(db: D1Database) {
+  (globalThis as SenderoRuntime)[SENDERO_DB_KEY] = db;
+}
+
+export function getSenderoDb(): D1Database {
+  const db = (globalThis as SenderoRuntime)[SENDERO_DB_KEY];
+  if (!db) {
+    throw new Error("O banco persistente do Sendero não está disponível.");
+  }
+  return db;
+}

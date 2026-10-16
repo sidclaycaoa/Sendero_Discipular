@@ -46,4 +46,4 @@ CREATE TABLE `IndexedWork` (
 );
 
 --> statement-breakpoint
-CREATE TABLE `IndexedPassageSearch` (`passageId` text PRIMARY KEY NOT NULL, `normalizedText` text NOT NULL);
+CREATE VIRTUAL TABLE `IndexedPassageSearch` USING fts5(passageId UNINDEXED, text, tokenize='unicode61 remove_diacritics 2');

@@ -29,7 +29,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-!.env.example
+/.dev.vars*
 
 # vercel
 .vercel
@@ -41,10 +41,8 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
-
-# private migration data: never commit reflections or database exports
 /private-data/
 /lib/data/sendero-db-full.json
-
 __pycache__/
 *.pyc
+*.tsbuildinfo

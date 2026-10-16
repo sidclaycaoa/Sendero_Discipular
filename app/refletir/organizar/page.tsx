@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { ArrowLeft, SlidersHorizontal } from "lucide-react";
 import { AppShell, ModuleHeader } from "@/components/app/AppShell";

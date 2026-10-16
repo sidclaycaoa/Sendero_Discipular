@@ -203,6 +203,15 @@ export async function getActiveUser() {
   let row = await db.prepare('SELECT * FROM "User" WHERE email = ? LIMIT 1').bind(ACTIVE_USER_EMAIL).first<UserRow>();
   row ??= await db.prepare('SELECT * FROM "User" ORDER BY createdAt ASC LIMIT 1').first<UserRow>();
 
+  if (!row) {
+    const now = new Date().toISOString();
+    const id = newId("user");
+    await db.prepare(
+      'INSERT INTO "User" (id, email, name, birthDate, mortemTargetAge, cycleAnchorDate, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, ACTIVE_USER_EMAIL, "Sidclay", "1994-01-21T00:00:00.000Z", 60, "2026-06-01T00:00:00.000Z", now, now).run();
+    row = await db.prepare('SELECT * FROM "User" WHERE id = ?').bind(id).first<UserRow>();
+  }
+
   if (!row) return null;
   return {
     ...row,

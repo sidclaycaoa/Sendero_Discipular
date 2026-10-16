@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import { HabitsScreen } from "@/components/habitos/HabitsScreen";
 import { getActiveUser, getHabitDashboard } from "@/lib/db/sendero";
 

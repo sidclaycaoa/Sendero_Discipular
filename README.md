@@ -1,21 +1,36 @@
-# Sendero
+# Sendero Discipular — Cloudflare Workers
 
-Aplicativo pessoal de reflexão, diário, hábitos, tarefas e trilha discipular. Este repositório contém a adaptação do Site original para Next.js na Vercel, com banco SQLite remoto. As sete obras aprovadas e o índice literal gerado são parte da aplicação; o repositório deve permanecer privado.
+Aplicativo pessoal do Sendero adaptado do Site original para **Cloudflare Workers + D1**. O código preserva as telas, APIs, sete obras indexadas e o endpoint `/mcp`. O repositório deve permanecer privado.
 
-## Estado da migração
+## Estado
 
-O build Next.js e as seis migrações SQL foram validados localmente. A publicação externa depende de importar um retrato **atual e completo** do banco, configurar Turso Cloud (SQLite), ligar GitHub à Vercel e proteger **todos** os domínios de produção com Vercel Authentication. O Site original permanece ativo durante a validação. Veja [MIGRATION.md](MIGRATION.md).
+O build Vinext/Workers, a preparação do D1 e os testes foram validados localmente. **Ainda não é uma implantação ativa.** O Site original permanece em uso enquanto o novo Worker e o banco são protegidos, importados e comparados.
 
-## Configuração
+## Configuração do Worker
 
-- Node.js >= 22.13 e `npm ci`.
-- `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` em variáveis privadas da Vercel; nunca em Git.
-- `npm run db:setup` cria o schema. `npm run db:setup -- --data private-data/sendero-current-export.json` importa a exportação atual.
-- `npm run build` gera a aplicação; `npm run dev` inicia desenvolvimento local.
-- `OPENAI_API_KEY` ou `GEMINI_API_KEY` são opcionais para as funções de IA.
+1. Em `wrangler.jsonc`, use o nome exato do Worker criado na sua conta e associe o banco D1 correto ao binding `DB`. Troque o `database_id` provisório pelo ID desse banco.
+2. Em Cloudflare Access, restrinja **produção e previews** desse Worker à sua identidade antes de publicar. Verifique também domínio personalizado e `workers.dev`.
+3. Conecte este repositório privado em Workers Builds. Use `npm ci && npm run build` como build e `npx wrangler deploy --config dist/server/wrangler.json` como deploy. Não ative builds automáticos até concluir a proteção.
+4. Aplique as migrações no D1 remoto com `npx wrangler d1 migrations apply sendero-discipular --remote` (ajuste o nome se diferente). Depois importe o backup privado gerado conforme abaixo.
 
-O índice das obras está em `lib/data/ad-book-index.json`, gerado a partir dos arquivos originais. Quando uma obra for trocada, execute `scripts/index-books.py` com os requisitos de `scripts/requirements-index.txt`, revise o resultado e faça commit. O código nunca inventa passagens ou aceita citações fornecidas pelo cliente como fonte.
+## Importação privada
 
-## Dados e acesso
+O backup pessoal **não entra no GitHub**. Coloque o JSON exportado dentro de `private-data/` e execute:
 
-A exportação do banco e o backup embutido no Site não entram no repositório. O aplicativo usa um usuário único já existente no banco; a autenticação externa será garantida na borda pela proteção de todos os deployments da Vercel. O endpoint MCP `/mcp` exige uma estratégia própria de autenticação e uma nova conexão antes de substituir o plugin AD que hoje aponta para o Site original.
+```bash
+node scripts/prepare-d1-import.mjs private-data/SEU_BACKUP.json
+for file in private-data/d1-import/*.sql; do npx wrangler d1 execute sendero-discipular --remote --file "$file"; done
+```
+
+Compare as contagens de tabelas e alguns registros recentes com o Site original. Faça uma sincronização final dos registros alterados depois do backup antes de mudar o uso diário. Não publique arquivos de `private-data/` nem variáveis de ambiente.
+
+## Validação local
+
+```bash
+npm ci
+npm run build
+npm test
+npx wrangler deploy --config dist/server/wrangler.json --dry-run
+```
+
+O endpoint MCP `/mcp` está no código, mas a conexão do plugin AD continua apontando ao Site atual até existir autenticação e uma conexão nova verificadas no Worker. O antigo Site só deve ser desativado após essa validação.
