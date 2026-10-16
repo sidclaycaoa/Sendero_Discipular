@@ -1,0 +1,86 @@
+[
+  {
+    "id": "marco-aurelio-meditacoes",
+    "title": "Meditações",
+    "author": "Marco Aurélio",
+    "sourceFile": "marco-aurelio-meditacoes.pdf",
+    "originalFilename": "meditac3a7c3b5es-marco-aurc3a9lio.pdf",
+    "edition": "Editora Kiron · 2011 · tradução de Thainara Castro Lima",
+    "editionNote": "ISBN 978-85-8113-030-9 · ficha catalográfica, página 2 do PDF",
+    "approved": true,
+    "approval": "Cinco obras integralmente aprovadas pelo usuário em 05/10/2026",
+    "sourceType": "pdf"
+  },
+  {
+    "id": "epicteto-arte-de-viver",
+    "title": "A Arte de Viver",
+    "author": "Epicteto",
+    "sourceFile": "epicteto-arte-de-viver.pdf",
+    "originalFilename": "A-Arte-de-Viver-Epicteto.pdf",
+    "edition": "Edição editorial não identificada no arquivo enviado · adaptação de Sharon Lebell",
+    "editionNote": "PDF enviado pelo usuário; autoria/adaptação no prólogo",
+    "approved": true,
+    "approval": "Cinco obras integralmente aprovadas pelo usuário em 05/10/2026",
+    "sourceType": "pdf"
+  },
+  {
+    "id": "seneca-tranquilidade",
+    "title": "Da Tranquilidade da Alma",
+    "author": "Sêneca",
+    "sourceFile": "seneca-tranquilidade.pdf",
+    "originalFilename": "seneca-da-tranquilidade-da-alma.pdf",
+    "edition": "L&PM · 2011 · Coleção Pocket, v. 789 · tradução de Lúcia Sá Rebello e Ellen Itanajara Neves Vranas",
+    "editionNote": "ISBN 978-85-254-2120-3 · ficha catalográfica, página 70 do PDF; arquivo inclui Da vida retirada e Da felicidade",
+    "approved": true,
+    "approval": "Cinco obras integralmente aprovadas pelo usuário em 05/10/2026",
+    "sourceType": "pdf"
+  },
+  {
+    "id": "n-sri-ram-aspectos",
+    "title": "Aspectos Profundos da Vida",
+    "author": "N. Sri Ram",
+    "sourceFile": "n-sri-ram-aspectos.pdf",
+    "originalFilename": "Sri Ram - Aspectos Profundos da Vida.pdf",
+    "edition": "Editora Teosófica · edição 2018 · tradução de Augusto Cezar Maia Hegouet",
+    "editionNote": "Folha de rosto e créditos, páginas 2–3 do PDF",
+    "approved": true,
+    "approval": "Cinco obras integralmente aprovadas pelo usuário em 05/10/2026",
+    "sourceType": "pdf"
+  },
+  {
+    "id": "aristoteles-etica",
+    "title": "Ética a Nicômaco",
+    "author": "Aristóteles",
+    "sourceFile": "aristoteles-etica.epub",
+    "originalFilename": "Etica a Nicomaco - Aristoteles.epub",
+    "edition": "Edição editorial e tradutor não identificados no EPUB enviado",
+    "editionNote": "Metadados do EPUB; datas de conversão não são tratadas como ano da edição",
+    "approved": true,
+    "approval": "Cinco obras integralmente aprovadas pelo usuário em 05/10/2026",
+    "sourceType": "epub"
+  },
+  {
+    "id": "n-sri-ram-sacrificio",
+    "title": "Sacrificio como alegría y libertad",
+    "author": "N. Sri Ram",
+    "sourceFile": "n-sri-ram-sacrificio.pdf",
+    "originalFilename": "Ram, Sri - Sacrificio como alegria y libertad.pdf",
+    "edition": "Artigo em espanhol · The Theosophist, dezembro de 1955 · conforme cabeçalho do PDF",
+    "editionNote": "Autor e publicação indicados na página 1. Tradutor e edição desta reprodução não identificados; data de criação do PDF não é edição.",
+    "approved": true,
+    "approval": "Obra integralmente aprovada para inclusão pelo usuário em 05/10/2026",
+    "sourceType": "pdf"
+  },
+  {
+    "id": "psicologia-2014",
+    "title": "Psicologia",
+    "author": "Autoria não identificada no arquivo",
+    "sourceFile": "psicologia-2014.pdf",
+    "originalFilename": "Psicologia_2014.pdf",
+    "edition": "Apostila em português com anotações · edição editorial não identificada no arquivo enviado",
+    "editionNote": "O nome do arquivo inclui 2014, sem confirmação editorial. Há comentários SM e notas didáticas no documento; não os atribua ao autor do texto principal. Metadados de criação do PDF não identificam a autoria da obra.",
+    "approved": true,
+    "approval": "Obra integralmente aprovada para inclusão pelo usuário em 05/10/2026",
+    "sourceType": "pdf"
+  }
+]

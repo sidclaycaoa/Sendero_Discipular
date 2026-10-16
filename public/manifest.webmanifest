@@ -1,0 +1,18 @@
+{
+  "name": "Sendero",
+  "short_name": "Sendero",
+  "description": "Vida discipular com reflexão, ação e progresso real.",
+  "start_url": "/inicio",
+  "display": "standalone",
+  "background_color": "#f7f4ed",
+  "theme_color": "#f7f4ed",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

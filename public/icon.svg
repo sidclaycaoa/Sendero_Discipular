@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sendero">
+  <rect width="512" height="512" rx="96" fill="#f7f4ed"/>
+  <path d="M136 372c88-16 114-68 128-118 13-47 38-91 104-114" fill="none" stroke="#46533b" stroke-width="32" stroke-linecap="round"/>
+  <path d="M153 181c41 6 73 29 96 68" fill="none" stroke="#b85d3b" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="363" cy="139" r="24" fill="#66704f"/>
+</svg>

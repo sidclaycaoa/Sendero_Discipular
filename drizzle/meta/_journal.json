@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1786066815586,
+      "tag": "0000_spicy_husk",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789950832414,
+      "tag": "0001_colossal_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790040179474,
+      "tag": "0002_curved_shotgun",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791242472793,
+      "tag": "0003_wandering_nightshade",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791243778215,
+      "tag": "0004_blue_texas_twister",
+      "breakpoints": true
+    }
+  ]
+}
