@@ -8,7 +8,7 @@ import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 import { LockGuard } from "@/components/app/LockGuard";
 
 const navItems = [
-  { href: "/inicio", label: "Inicio", icon: Home },
+  { href: "/inicio", label: "Início", icon: Home },
   { href: "/refletir", label: "Refletir", icon: BookOpenText },
   { href: "/habitos", label: "Hábitos", icon: CheckSquare2 },
   { href: "/tarefas", label: "Tarefas", icon: CalendarCheck2 },

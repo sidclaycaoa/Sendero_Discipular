@@ -19,7 +19,7 @@ const ATTEMPTS_COOKIE = "sendero_tentativas";
 const SESSION_DAYS = 90;
 export const LOCK_AFTER_MS = 5 * 60 * 1000;
 const MAX_PIN_ATTEMPTS = 5;
-const PUBLIC_PATHS = new Set(["/manifest.webmanifest", "/icon.svg", "/favicon.svg", "/favicon.ico"]);
+const PUBLIC_PATHS = new Set(["/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png", "/favicon.svg", "/favicon.ico"]);
 export const PRESENCE_PATH = "/api/presenca";
 const UNLOCK_PATH = "/desbloquear";
 

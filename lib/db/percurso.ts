@@ -214,7 +214,9 @@ export function buildHeatmap(activity: Map<string, number>, startKey: string, to
     }
     const month = days[0].date.slice(0, 7);
     if (month !== lastMonth) {
-      monthLabels.push({ column: week, label: monthLabel(month) });
+      // A label needs about three columns; skip one that would overlap the previous.
+      const previous = monthLabels.at(-1);
+      if (!previous || week - previous.column >= 3) monthLabels.push({ column: week, label: monthLabel(month) });
       lastMonth = month;
     }
     weeks.push(days);

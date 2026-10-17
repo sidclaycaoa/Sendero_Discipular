@@ -19,11 +19,11 @@ export function InicioScreen({ realUser, realReflectionTopics = [], overdueRefle
   const action = !diaryDone ? { href: "/diario", label: "Registrar o diário de hoje", detail: "Um registro consciente encerra o dia com direção." } : pending ? { href: "/refletir", label: `${pending} reflex${pending === 1 ? "ão pendente" : "ões pendentes"}`, detail: "Retome uma por vez; a fila fica organizada na tela de reflexões." } : lateTasks ? { href: "/tarefas", label: `${lateTasks} tarefa${lateTasks === 1 ? " atrasada" : "s atrasadas"}`, detail: "Escolha a mais importante e dê um próximo passo concreto." } : { href: "/habitos", label: "Sustentar os hábitos de hoje", detail: "A constância preserva o caminho quando não há urgências." };
   return <AppShell showDailyTonic={false}>
     <header className="rounded-2xl bg-ink p-5 text-paper shadow-soft">
-      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-sm text-paper/65">{greeting()}, {realUser?.name ?? "Sidclay"}</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Trilha Discipular</h1></div><Link prefetch={false} href="/configuracoes" className="shrink-0 rounded-full border border-white/15 bg-white/10 p-3" aria-label="Configurações"><Settings className="h-5 w-5" /></Link></div>
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-sm text-paper/65">{greeting()}, {realUser?.name ?? "Sidclay"}</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Sendero</h1></div><Link prefetch={false} href="/configuracoes" className="shrink-0 rounded-full border border-white/15 bg-white/10 p-3" aria-label="Configurações"><Settings className="h-5 w-5" /></Link></div>
       {mortem ? <div className="mt-5 grid grid-cols-[1fr_auto] gap-4 border-t border-white/10 pt-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-paper/55">Mortem</p><p className="mt-1 text-2xl font-semibold text-paper">{mortem.livedPercentage.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% <span className="text-sm font-medium text-paper/60">vivido</span></p></div><div className="text-right"><p className="text-xs font-semibold uppercase tracking-wide text-paper/55">Tempo restante</p><p className="mt-1 text-xl font-semibold text-clay">{mortem.remainingDays.toLocaleString("pt-BR")} <span className="text-sm font-medium text-paper/60">dias</span></p></div></div> : null}
     </header>
 
-    <div className="mt-4"><DailyTonicStrip /></div>
+    <div className="mt-4"><DailyTonicStrip defaultOpen /></div>
 
     {percurso ? <TodayRings groups={percurso.today.groups} reflections={{ done: reflectionsDone, total: topics.length + 1 }} /> : null}
 
