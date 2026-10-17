@@ -18,6 +18,8 @@ async function read(params: Record<string, string>) {
 export function ADPanel({ initialHistory, initialProposals, initialPassages, initialFilters, selectedId }: { initialHistory: { total: number; records: HistoryRecord[] }; initialProposals: ADRecord[]; initialPassages: Passage[]; initialFilters: { from: string; to: string; theme: string; kind: string }; selectedId?: string }) {
   const [history, setHistory] = useState(initialHistory); const [proposals, setProposals] = useState(initialProposals); const [passages, setPassages] = useState(initialPassages);
   const [showForm, setShowForm] = useState(false); const [showSources, setShowSources] = useState(false);
+  // The integrated history is long; it opens on demand (or when a record is linked).
+  const [showHistory, setShowHistory] = useState(Boolean(selectedId));
   const [sourceQuery, setSourceQuery] = useState("");
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState("");
   const [filters, setFilters] = useState(initialFilters); const [offset, setOffset] = useState(0);
@@ -56,6 +58,8 @@ export function ADPanel({ initialHistory, initialProposals, initialPassages, ini
     {showSources && <IndexBrowser busy={busy} act={act} />}
     {!!proposals.length && <Card className="mt-4"><h3 className="text-lg font-semibold text-ink">Propostas aguardando sua confirmação</h3><div className="mt-3 space-y-4">{proposals.map(p => <article key={p.id} className="rounded-lg border border-amber-200 bg-amber-50/40 p-4"><p className="text-xs text-olive">{p.date} · Proposta, ainda não registrada</p><h4 className="mt-1 font-semibold">{p.theme}</h4><RecordBody record={p} /><p className="mt-3 text-xs text-ink/60">{p.sourceStatus}</p><div className="mt-4 flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => act(async () => { const r = await call({ action: "confirm", proposalId: p.id, confirmation: "confirmo" }); const focusedFilters = { from: r.record.date, to: r.record.date, kind: "AD", theme: "" }; setFilters(focusedFilters); await refresh(0, focusedFilters); setMessage(`Reflexão AD registrada. ID: ${r.record.id}. Visível no histórico abaixo.`); })}>Confirmo · registrar esta síntese</button><button className="min-h-11 px-3 text-sm text-ink/60" disabled={busy} onClick={() => act(async () => { await call({ action: "dismiss", proposalId: p.id }); await refresh(); })}>Descartar proposta</button></div></article>)}</div></Card>}
     <Card className="mt-4"><h3 className="text-lg font-semibold text-ink">Histórico integrado</h3><p className="mt-1 text-sm text-ink/60">Diário, reflexões do ciclo e Reflexões AD · {history.total} registros</p>
+      <button type="button" aria-expanded={showHistory} className="mt-3 min-h-11 w-full rounded-md border border-line bg-white px-4 text-sm font-semibold text-moss" onClick={() => setShowHistory(!showHistory)}>{showHistory ? "Recolher histórico" : "Abrir histórico e filtros"}</button>
+      {showHistory && <>
       <form className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); void act(() => refresh()); }}>
         <label className="text-xs font-semibold">De<input type="date" className={field} value={filters.from} onChange={e => setFilters({ ...filters, from: e.target.value })} /></label>
         <label className="text-xs font-semibold">Até<input type="date" className={field} value={filters.to} onChange={e => setFilters({ ...filters, to: e.target.value })} /></label>
@@ -64,6 +68,7 @@ export function ADPanel({ initialHistory, initialProposals, initialPassages, ini
       </form>
       <div className="mt-5 space-y-3">{history.records.map(r => <details key={`${r.kind}-${r.id}`} open={r.id === selectedId || undefined} className="rounded-lg border border-line p-4"><summary className="cursor-pointer text-sm text-ink"><span className="text-xs text-olive">{r.date} · {r.kind === "AD" ? "AD / conversa" : r.kind === "CICLO" ? "Reflexão do ciclo" : "Diário"}</span><span className="mt-1 block font-semibold">{r.theme}</span><span className="mt-2 block font-normal text-ink/70">{r.summary.slice(0, 180)}{r.summary.length > 180 ? "…" : ""}</span></summary><div className="mt-4 border-t border-line pt-3"><RecordBody record={r} /><p className="mt-3 break-all text-xs text-ink/45">Registro: {r.id}</p></div></details>)}{!history.records.length && <p className="text-sm text-ink/60">Nenhum registro neste filtro.</p>}</div>
       <div className="mt-4 flex items-center justify-between gap-2 text-sm"><button disabled={busy || offset === 0} className="min-h-11 px-2 disabled:opacity-30" onClick={() => act(() => refresh(Math.max(0, offset - 25)))}>Anterior</button><span>{history.total ? `${offset + 1}–${offset + history.records.length} de ${history.total}` : "0 registros"}</span><button disabled={busy || offset + 25 >= history.total} className="min-h-11 px-2 disabled:opacity-30" onClick={() => act(() => refresh(offset + 25))}>Próxima</button></div>
+      </>}
     </Card>
   </section>;
 }
