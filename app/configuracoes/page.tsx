@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Database, Download, KeyRound, Settings, Shield, SlidersHorizontal } from "lucide-react";
+import { Database, Download, KeyRound, LogOut, Settings, Shield, SlidersHorizontal } from "lucide-react";
 import { AppShell, Card, ModuleHeader, Pill } from "@/components/app/AppShell";
 import { getActiveUser, getHabitDashboard, getReflectionStats } from "@/lib/db/sendero";
 
@@ -22,8 +22,13 @@ export default async function ConfiguracoesPage() {
         <ConfigItem icon={<SlidersHorizontal className="h-5 w-5" />} title="Ciclo e hábitos" detail={`Ciclo de 30 dias · ${habits?.habits.length ?? 0} hábitos ativos.`} />
         <ConfigItem icon={<Database className="h-5 w-5" />} title="Base de reflexões" detail={`${stats.totalReflections} reflexões salvas em ${stats.topics} temas ativos.`} />
         <ConfigItem icon={<Download className="h-5 w-5" />} title="Exportar dados" detail="A exportação por seções está disponível em Relatórios." />
-        <ConfigItem icon={<Shield className="h-5 w-5" />} title="Privacidade" detail="Reflexões e Diário são dados íntimos isolados por usuário." />
+        <ConfigItem icon={<Shield className="h-5 w-5" />} title="Privacidade" detail="Acesso por senha e bloqueio por PIN após 5 minutos fora do app." />
       </section>
+
+      <a href="/sair" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800">
+        <LogOut className="h-4 w-4" aria-hidden="true" /> Sair agora
+      </a>
+      <p className="mt-2 text-center text-xs leading-5 text-ink/55">Fecha o acesso neste aparelho. Para voltar, será pedida a senha.</p>
 
       <Card className="mt-4">
         <div className="flex items-center justify-between">

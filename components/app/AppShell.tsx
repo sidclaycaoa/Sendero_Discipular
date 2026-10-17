@@ -3,27 +3,47 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, BookOpenText, CalendarCheck2, CheckSquare2, Compass, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
+import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
+import { LockGuard } from "@/components/app/LockGuard";
 
 const navItems = [
   { href: "/inicio", label: "Inicio", icon: Home },
   { href: "/refletir", label: "Refletir", icon: BookOpenText },
   { href: "/habitos", label: "Hábitos", icon: CheckSquare2 },
   { href: "/tarefas", label: "Tarefas", icon: CalendarCheck2 },
-  { href: "/diario", label: "Diário", icon: NotebookPen },
-  { href: "/caminho", label: "Caminho", icon: Compass },
-  { href: "/relatorios", label: "Relatórios", icon: BarChart3 }
+  { href: "/diario", label: "Diário", icon: NotebookPen }
 ];
+
+// After this long in the background the app reopens on Início, like a native app.
+const RETURN_HOME_AFTER_MS = 30 * 60 * 1000;
+
+/** Screens where the user may be mid-writing; never navigate away from them. */
+function isWritingScreen(pathname: string) {
+  return pathname === "/diario" || pathname === "/configuracoes" || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
+}
 
 export function AppShell({ children, showDailyTonic = true }: { children: ReactNode; showDailyTonic?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const visiblePendingHref = pendingHref === pathname ? null : pendingHref;
+  function onReturn(awayMs: number) {
+    if (awayMs > RETURN_HOME_AFTER_MS && !isWritingScreen(pathname)) goHome();
+  }
+
+  function goHome() {
+    if (pathname === "/inicio" || pathname === "/") {
+      router.refresh();
+    } else {
+      router.push("/inicio");
+    }
+    window.scrollTo({ top: 0 });
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fffaf0_0,#f7f4ed_34%,#ece5d7_100%)] text-ink">
+      <LockGuard onReturn={onReturn} />
       {visiblePendingHref ? <div className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-clay" aria-hidden="true" /> : null}
 
       <div className="mx-auto grid min-h-screen w-full max-w-[1440px] md:grid-cols-[230px_minmax(0,1fr)]">
@@ -45,7 +65,7 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/96 px-1 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-12px_30px_rgba(31,37,40,0.10)] backdrop-blur md:hidden" aria-label="Navegação principal">
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-5 gap-1">
             {navItems.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} pendingHref={visiblePendingHref} setPendingHref={setPendingHref} prefetchRoute={router.prefetch} mobile />
             ))}
