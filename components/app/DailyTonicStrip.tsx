@@ -17,10 +17,18 @@ export function DailyTonicStrip() {
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/discipulado/tonica", { cache: "no-store" })
+    // The tonic changes once a day, so reuse it across page changes instead of refetching.
+    const cacheKey = `sendero:tonica:${todayKey()}`;
+    const cached = readCachedTonic(cacheKey);
+    const load = cached ? Promise.resolve(cached) : fetch("/api/discipulado/tonica")
       .then((response) => response.ok ? response.json() as Promise<{ tonic?: Tonic }> : null)
-      .then((data) => { if (active && data?.tonic) setTonic(data.tonic); })
-      .catch(() => undefined);
+      .then((data) => {
+        if (data?.tonic) {
+          try { window.sessionStorage.setItem(cacheKey, JSON.stringify(data.tonic)); } catch {}
+        }
+        return data?.tonic ?? null;
+      });
+    void load.then((value) => { if (active && value) setTonic(value); }).catch(() => undefined);
     return () => { active = false; };
   }, []);
 
@@ -39,4 +47,17 @@ export function DailyTonicStrip() {
       </div>
     </section>
   );
+}
+
+function todayKey() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+function readCachedTonic(key: string): Tonic | null {
+  try {
+    const value = window.sessionStorage.getItem(key);
+    return value ? JSON.parse(value) as Tonic : null;
+  } catch {
+    return null;
+  }
 }

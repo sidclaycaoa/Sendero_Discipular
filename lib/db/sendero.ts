@@ -3,6 +3,25 @@ import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
 
 const ACTIVE_USER_EMAIL = "sidclay@example.com";
 
+// Every page needs the user and some fixed catalog rows. Each D1 round trip
+// crosses the network, so these are loaded or seeded once per Worker isolate
+// instead of on every request.
+const ACTIVE_USER_TTL_MS = 5 * 60 * 1000;
+let activeUserCache: { promise: ReturnType<typeof loadActiveUser>; expiresAt: number } | null = null;
+const isolateOnce = new Map<string, Promise<unknown>>();
+
+function oncePerIsolate<T>(key: string, run: () => Promise<T>): Promise<T> {
+  let promise = isolateOnce.get(key) as Promise<T> | undefined;
+  if (!promise) {
+    promise = run().catch((error) => {
+      isolateOnce.delete(key);
+      throw error;
+    });
+    isolateOnce.set(key, promise);
+  }
+  return promise;
+}
+
 type UserRow = {
   id: string;
   email: string;
@@ -197,7 +216,19 @@ export type ReflectionTemplateSettings = {
   isTemporary: boolean;
 };
 
-export async function getActiveUser() {
+export function getActiveUser() {
+  const now = Date.now();
+  if (!activeUserCache || activeUserCache.expiresAt < now) {
+    const promise = loadActiveUser().catch((error) => {
+      if (activeUserCache?.promise === promise) activeUserCache = null;
+      throw error;
+    });
+    activeUserCache = { promise, expiresAt: now + ACTIVE_USER_TTL_MS };
+  }
+  return activeUserCache.promise;
+}
+
+async function loadActiveUser() {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   let row = await db.prepare('SELECT * FROM "User" WHERE email = ? LIMIT 1').bind(ACTIVE_USER_EMAIL).first<UserRow>();
@@ -288,8 +319,13 @@ async function selectDailyTonic(userId: string, dateKey: string): Promise<DailyD
   };
 }
 
-async function ensureDiscipleshipCatalog(userId: string) {
+function ensureDiscipleshipCatalog(userId: string) {
+  return oncePerIsolate(`ensureDiscipleshipCatalog:${userId}`, () => seedDiscipleshipCatalog(userId));
+}
+
+async function seedDiscipleshipCatalog(userId: string) {
   const db = getSenderoDb();
+  if (await isDiscipleshipCatalogCurrent(userId)) return;
   const now = new Date().toISOString();
   const statements = discipleshipPhases.flatMap((phase, phaseIndex) => {
     const phaseId = `ed_phase_${userId}_${phaseIndex + 1}`;
@@ -313,6 +349,29 @@ async function ensureDiscipleshipCatalog(userId: string) {
   await db.batch(guidanceStatements);
   await db.prepare('INSERT OR IGNORE INTO "DiscipleshipCycle" (userId, startedOn, startTopicId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)')
     .bind(userId, getSaoPauloDateKey(), `ed_topic_${userId}_1_1`, now, now).run();
+}
+
+/** One read instead of three batched writes when the stored catalog already matches the code. */
+async function isDiscipleshipCatalogCurrent(userId: string) {
+  const result = await getSenderoDb().prepare(`
+    SELECT p.sequence AS phaseSequence, p.title AS phaseTitle, p.objective, t.sequence AS topicSequence, t.title AS topicTitle, g.synthesis,
+      (SELECT COUNT(*) FROM "DiscipleshipCycle" c WHERE c.userId = p.userId) AS hasCycle
+    FROM "DiscipleshipPhase" p
+    JOIN "DiscipleshipTopic" t ON t.phaseId = p.id
+    LEFT JOIN "DiscipleshipTopicGuidance" g ON g.topicId = t.id
+    WHERE p.userId = ?
+    ORDER BY p.sequence ASC, t.sequence ASC
+  `).bind(userId).all<{ phaseSequence: number; phaseTitle: string; objective: string; topicSequence: number; topicTitle: string; synthesis: string | null; hasCycle: number }>();
+  const expected = discipleshipPhases.flatMap((phase, phaseIndex) => phase.topics.map((title, topicIndex) => ({
+    phaseSequence: phaseIndex + 1, phaseTitle: phase.title, objective: phase.objective, topicSequence: topicIndex + 1, topicTitle: title,
+    synthesis: discipleshipGuidance[`${phaseIndex + 1}.${topicIndex + 1}`],
+  })));
+  const rows = result.results;
+  return rows.length === expected.length && Number(rows[0]?.hasCycle) > 0 && expected.every((item, index) => {
+    const row = rows[index];
+    return Number(row.phaseSequence) === item.phaseSequence && row.phaseTitle === item.phaseTitle && row.objective === item.objective
+      && Number(row.topicSequence) === item.topicSequence && row.topicTitle === item.topicTitle && row.synthesis === item.synthesis;
+  });
 }
 
 export async function getReflectionStats(userId: string) {
@@ -1045,7 +1104,11 @@ export async function archiveHabitTemplate(userId: string, habitId: string) {
     .bind(new Date().toISOString(), habitId, userId).run();
 }
 
-async function ensureDefaultHabitTemplates(userId: string) {
+function ensureDefaultHabitTemplates(userId: string) {
+  return oncePerIsolate(`ensureDefaultHabitTemplates:${userId}`, () => seedDefaultHabitTemplates(userId));
+}
+
+async function seedDefaultHabitTemplates(userId: string) {
   const db = getSenderoDb();
   const categoryId = await ensureCategory(userId);
   const now = new Date().toISOString();
@@ -1070,7 +1133,11 @@ function practiceGroupId(userId: string, code: PracticeGroupCode) {
   return `practice_group_${userId}_${code.toLowerCase()}`;
 }
 
-async function ensurePracticeGroups(userId: string) {
+function ensurePracticeGroups(userId: string) {
+  return oncePerIsolate(`ensurePracticeGroups:${userId}`, () => seedPracticeGroups(userId));
+}
+
+async function seedPracticeGroups(userId: string) {
   const db = getSenderoDb();
   const now = new Date().toISOString();
   const groups: Array<[PracticeGroupCode, string, number]> = [
@@ -1137,7 +1204,11 @@ export async function updateReflectionTemplateSettings({ userId, templateId, cyc
   return { id: templateId };
 }
 
-async function ensureCategory(userId: string) {
+function ensureCategory(userId: string) {
+  return oncePerIsolate(`ensureCategory:${userId}`, () => seedCategory(userId));
+}
+
+async function seedCategory(userId: string) {
   const db = getSenderoDb();
   const existing = await db.prepare('SELECT id FROM "Category" WHERE userId = ? AND name = ? LIMIT 1')
     .bind(userId, "Discipular").first<{ id: string }>();

@@ -16,13 +16,16 @@ const viewOptions: Array<{ id: PlannerView; label: string; icon: typeof Calendar
 ];
 const blankForm = (date: string): FormState => ({ title: "", description: "", date, startTime: "09:00", endTime: "10:00", location: "", priority: 2, repeat: "none", weekdays: [] });
 
-export function TasksScreen({ tasks, events, shopping, selectedDate, rangeStart, rangeEnd }: { tasks: TaskBoardItem[]; events: CalendarEvent[]; shopping: ShoppingItem[]; selectedDate: string; rangeStart: string; rangeEnd: string }) {
+export function TasksScreen({ tasks: loadedTasks, events, shopping, selectedDate, rangeStart, rangeEnd }: { tasks: TaskBoardItem[]; events: CalendarEvent[]; shopping: ShoppingItem[]; selectedDate: string; rangeStart: string; rangeEnd: string }) {
   const router = useRouter();
   const [view, setView] = useState<PlannerView>("day");
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ kind: EditorKind; id?: string } | null>(null);
   const [form, setForm] = useState<FormState>(() => blankForm(selectedDate));
+  // Tasks being completed disappear at once; the server catches up in the background.
+  const [completingIds, setCompletingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const tasks = useMemo(() => loadedTasks.filter((task) => !completingIds.has(task.id)), [loadedTasks, completingIds]);
   const selectedTasks = useMemo(() => tasks.filter((task) => task.date === selectedDate), [tasks, selectedDate]);
   const selectedEvents = useMemo(() => events.filter((event) => event.date === selectedDate), [events, selectedDate]);
   const weekDays = useMemo(() => buildDateRange(startOfWeek(selectedDate), 7), [selectedDate]);
@@ -61,7 +64,13 @@ export function TasksScreen({ tasks, events, shopping, selectedDate, rangeStart,
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível salvar agora."); } finally { setSaving(null); }
   }
   async function toggleTask(task: TaskBoardItem) {
-    setSaving(task.id); try { await request(`/api/tasks/${task.id}`, "PATCH", { completed: true }); router.refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível concluir a tarefa."); } finally { setSaving(null); }
+    setError(null);
+    setCompletingIds((current) => new Set(current).add(task.id));
+    try { await request(`/api/tasks/${task.id}`, "PATCH", { completed: true }); router.refresh(); }
+    catch (reason) {
+      setCompletingIds((current) => { const next = new Set(current); next.delete(task.id); return next; });
+      setError(reason instanceof Error ? reason.message : "Não foi possível concluir a tarefa.");
+    }
   }
   async function remove(id: string, label: string, kind: EditorKind) {
     if (!window.confirm(`Excluir “${label}”?`)) return;

@@ -10,8 +10,9 @@ const works = corpus.works;
 const approvedIds = works.map(w => w.id);
 
 export async function ensureBookIndex(db: D1Database) {
+  const stored = await db.prepare('SELECT id, status, revision, passageCount FROM "IndexedWork"').all<{ id: string; status: string; revision: string; passageCount: number }>();
   for (const w of works) {
-    const existing = await db.prepare('SELECT status, revision, passageCount FROM "IndexedWork" WHERE id = ?').bind(w.id).first<{ status: string; revision: string; passageCount: number }>();
+    const existing = stored.results.find(row => row.id === w.id);
     if (existing?.status === "INDEXED" && existing.revision === w.revision && existing.passageCount === w.passageCount) continue;
     if (w.status === "INDEXED") {
       const units = corpus.units.filter(u => u.workId === w.id);

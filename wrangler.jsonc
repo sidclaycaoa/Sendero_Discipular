@@ -4,6 +4,9 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2026-10-16",
   "compatibility_flags": ["nodejs_compat"],
+  // The D1 primary lives in Eastern North America (ENAM). Running the Worker next
+  // to it turns each query into a local hop; the user pays one long trip per page.
+  "placement": { "region": "gcp:us-east1" },
   "assets": { "binding": "ASSETS", "not_found_handling": "none", "run_worker_first": true },
   "images": { "binding": "IMAGES" },
   "d1_databases": [
