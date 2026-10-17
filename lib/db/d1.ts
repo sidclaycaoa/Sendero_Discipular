@@ -100,14 +100,6 @@ const runtimeSchemaStatements = [
     createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS "ShoppingItem_userId_checked_idx" ON "ShoppingItem" (userId, isChecked, createdAt)`,
-  `CREATE TABLE IF NOT EXISTS "ReferenceWork" (
-    id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, author TEXT NOT NULL, tradition TEXT NOT NULL, importedAt TEXT NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS "ReferencePassage" (
-    id TEXT PRIMARY KEY NOT NULL, workId TEXT NOT NULL, sequence INTEGER NOT NULL, location TEXT NOT NULL, contentText TEXT NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS "ReferencePassage_workId_sequence_idx" ON "ReferencePassage" (workId, sequence)`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS "ReferencePassageSearch" USING fts5(id UNINDEXED, workId UNINDEXED, contentText)`,
 ];
 
 export async function ensureSenderoSeeded() {
