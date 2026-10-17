@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
 import type { PercursoData, PracticeGroupCode } from "@/lib/db/percurso";
+import type { ReflectionAttendance } from "@/lib/db/sendero";
+
+const ATTENDANCE_GOAL = 90;
 
 export const groupStyle: Record<PracticeGroupCode, { label: string; color: string; track: string }> = {
   ED: { label: "Práticas ED", color: "#b23a2c", track: "#f4dcd8" },
@@ -47,7 +50,7 @@ function Ring({ label, value, ratio, color, track }: { id: string; label: string
   );
 }
 
-export function PercursoSections({ data, tonicPosition }: { data: PercursoData; tonicPosition: { current: number; total: number } | null }) {
+export function PercursoSections({ data, tonicPosition, attendance }: { data: PercursoData; tonicPosition: { current: number; total: number } | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null }) {
   const milestones = [
     ...(tonicPosition ? [{ label: "Ciclo das tônicas", current: tonicPosition.current, target: tonicPosition.total, note: tonicPosition.current === tonicPosition.total ? "fecha hoje" : `${tonicPosition.current} de ${tonicPosition.total}` }] : []),
     ...data.milestones.map((item) => ({ ...item, note: `${item.current} · faltam ${item.target - item.current}` })),
@@ -63,6 +66,8 @@ export function PercursoSections({ data, tonicPosition }: { data: PercursoData; 
           <h2 className="mt-1 text-2xl font-semibold text-ink">Percurso</h2>
         </div>
       </div>
+
+      {attendance ? <AttendanceCard current={attendance.current} previous={attendance.previous} /> : null}
 
       <Card className="mt-4">
         <div className="flex items-baseline justify-between gap-3">
@@ -180,6 +185,39 @@ export function PercursoSections({ data, tonicPosition }: { data: PercursoData; 
         <Download className="h-4 w-4" /> Exportar dados por período
       </Link>
     </div>
+  );
+}
+
+function AttendanceCard({ current, previous }: { current: ReflectionAttendance; previous: ReflectionAttendance }) {
+  const percent = current.percent ?? 0;
+  const tone = percent >= ATTENDANCE_GOAL ? { text: "text-emerald-800", bar: "#2f6b2a" } : percent >= 70 ? { text: "text-amber-800", bar: "#a87600" } : { text: "text-red-800", bar: "#b23a2c" };
+  const missing = Math.max(0, Math.ceil(current.due * ATTENDANCE_GOAL / 100) - current.done);
+  const delta = current.percent !== null && previous.percent !== null ? current.percent - previous.percent : null;
+  return (
+    <Card className="mt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-lg font-semibold text-ink">Atendimento às reflexões</h3>
+        <span className="text-xs font-semibold text-ink/60">meta {ATTENDANCE_GOAL}%</span>
+      </div>
+      {current.percent === null ? <p className="mt-2 text-sm text-ink/60">Nenhum bloco do mês terminou ainda.</p> : <>
+        <p className="mt-2 flex items-baseline gap-2">
+          <span className={`text-4xl font-semibold ${tone.text}`}>{current.percent}%</span>
+          <span className="text-sm text-ink/70">{current.done} de {current.due} no prazo · {monthName(current.month)}</span>
+        </p>
+        <div className="relative mt-3 h-3 rounded-full bg-[#efeae0]" aria-hidden="true">
+          <div className="h-full rounded-full" style={{ width: `${percent}%`, background: tone.bar }} />
+          <span className="absolute -top-1 h-5 w-0.5 bg-ink" style={{ left: `${ATTENDANCE_GOAL}%` }} />
+        </div>
+        <p className="mt-3 text-sm leading-5 text-ink/80">
+          {missing === 0 ? "Meta do mês alcançada até aqui. Siga sem deixar acumular." : <>Faltam <strong>{missing}</strong> reflex{missing === 1 ? "ão" : "ões"} pendente{missing === 1 ? "" : "s"} do mês para chegar a {ATTENDANCE_GOAL}%.</>}
+        </p>
+      </>}
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#f0ebe1] pt-3 text-sm">
+        <span className="text-ink/70">{capitalize(monthName(previous.month))}: {previous.percent === null ? "—" : `${previous.percent}%`}</span>
+        {delta !== null ? <Delta value={delta} /> : null}
+        <Link prefetch={false} href="/refletir#fila" className="font-semibold text-moss">Ver pendências</Link>
+      </div>
+    </Card>
   );
 }
 

@@ -5,11 +5,12 @@ import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 import { calculateMortem } from "@/lib/services/MortemService";
 import { PercursoSections, TodayRings } from "@/components/inicio/PercursoSections";
 import type { PercursoData } from "@/lib/db/percurso";
+import type { ReflectionAttendance } from "@/lib/db/sendero";
 import type { DbReflectionTopic, OpenTask, OverdueReflectionTopic } from "@/lib/db/sendero";
 
-type InicioScreenProps = { realUser?: { name: string; birthDate: string; mortemTargetAge: number }; realReflectionTopics?: DbReflectionTopic[]; overdueReflections?: OverdueReflectionTopic[]; openTasks?: OpenTask[]; diaryDone?: boolean; todayKey?: string; percurso?: PercursoData | null; tonicPosition?: { current: number; total: number } | null };
+type InicioScreenProps = { realUser?: { name: string; birthDate: string; mortemTargetAge: number }; realReflectionTopics?: DbReflectionTopic[]; overdueReflections?: OverdueReflectionTopic[]; openTasks?: OpenTask[]; diaryDone?: boolean; todayKey?: string; percurso?: PercursoData | null; tonicPosition?: { current: number; total: number } | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null };
 
-export function InicioScreen({ realUser, realReflectionTopics = [], overdueReflections = [], openTasks = [], diaryDone = false, todayKey = new Date().toISOString().slice(0, 10), percurso = null, tonicPosition = null }: InicioScreenProps) {
+export function InicioScreen({ realUser, realReflectionTopics = [], overdueReflections = [], openTasks = [], diaryDone = false, todayKey = new Date().toISOString().slice(0, 10), percurso = null, tonicPosition = null, attendance = null }: InicioScreenProps) {
   const topics = realReflectionTopics;
   const pending = topics.filter(topic => topic.status !== "feita").length;
   const lateTasks = openTasks.filter(task => task.proximity === "late").length;
@@ -36,7 +37,7 @@ export function InicioScreen({ realUser, realReflectionTopics = [], overdueRefle
     </section>
 
 
-    {percurso ? <PercursoSections data={percurso} tonicPosition={tonicPosition} /> : null}
+    {percurso ? <PercursoSections data={percurso} tonicPosition={tonicPosition} attendance={attendance} /> : null}
   </AppShell>;
 }
 

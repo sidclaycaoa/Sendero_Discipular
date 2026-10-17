@@ -1,5 +1,6 @@
 import { InicioScreen } from "@/components/inicio/InicioScreen";
-import { getActiveUser, getDailyDiscipleshipTonic, getDiaryEntry, getDiscipleshipCatalog, getOpenTasks, getReflectionPageData } from "@/lib/db/sendero";
+import { getActiveUser, getDailyDiscipleshipTonic, getDiaryEntry, getDiscipleshipCatalog, getOpenTasks, getReflectionAttendance, getReflectionPageData } from "@/lib/db/sendero";
+import type { ReflectionAttendance } from "@/lib/db/sendero";
 import { getPercursoData } from "@/lib/db/percurso";
 import type { PercursoData } from "@/lib/db/percurso";
 import type { DbReflectionTopic, OpenTask, OverdueReflectionTopic } from "@/lib/db/sendero";
@@ -23,17 +24,20 @@ export default async function InicioPage() {
   let diaryDone = false;
   let percurso: PercursoData | null = null;
   let tonicPosition: { current: number; total: number } | null = null;
+  let attendance: { current: ReflectionAttendance; previous: ReflectionAttendance } | null = null;
   const todayKey = getSaoPauloDateKey();
 
   try {
-    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, tonic, catalog] = await Promise.all([
+    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, tonic, catalog, loadedAttendance] = await Promise.all([
       getReflectionPageData(user.id, user.cycleAnchorDate, undefined, undefined, 60),
       getOpenTasks(user.id),
       getDiaryEntry(user.id, todayKey),
       getPercursoData(user.id, todayKey).catch((error) => { console.error("Failed to load percurso", error); return null; }),
       getDailyDiscipleshipTonic(user.id, todayKey).catch(() => null),
       getDiscipleshipCatalog(user.id).catch(() => []),
+      getReflectionAttendance(user.id, todayKey).catch(() => null),
     ]);
+    attendance = loadedAttendance;
 
     topics = reflectionData.topics;
     overdueReflections = reflectionData.overdue;
@@ -61,6 +65,7 @@ export default async function InicioPage() {
       todayKey={todayKey}
       percurso={percurso}
       tonicPosition={tonicPosition}
+      attendance={attendance}
     />
   );
 }

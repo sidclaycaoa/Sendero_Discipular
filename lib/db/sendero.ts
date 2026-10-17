@@ -448,10 +448,15 @@ export async function getReflectionPageData(
   selectedCycleDay?: number,
   monthKey?: string,
   overdueLimit = 8,
+  includePreviousMonth = false,
 ) {
   const normalizedMonth = normalizeReflectionMonthKey(monthKey);
+  const previousMonth = shiftReflectionMonthKey(normalizedMonth, -1);
   const cycleWindow = getReflectionCycleWindow(cycleAnchorDate, selectedCycleDay, normalizedMonth);
-  const monthData = await loadReflectionMonthData(userId, normalizedMonth);
+  const [monthData, previousMonthData] = await Promise.all([
+    loadReflectionMonthData(userId, normalizedMonth),
+    loadReflectionMonthData(userId, previousMonth),
+  ]);
   const topics = buildTopicsForWindow(monthData, cycleWindow);
   const cycleSummaries = Array.from({ length: 15 }).map((_, index) => {
     const day = index * 2 + 1;
@@ -460,8 +465,11 @@ export async function getReflectionPageData(
     const done = cycleTopics.filter((topic) => topic.status === "feita").length;
     return { day, days: window.days, dateKeys: window.dateKeys, done, pending: cycleTopics.length - done, total: cycleTopics.length };
   });
-  const overdue = buildOverdueTopics(monthData, cycleAnchorDate, normalizedMonth, cycleWindow.days[0]).slice(0, overdueLimit);
-  return { topics, cycleSummaries, overdue };
+  const currentOverdue = buildOverdueTopics(monthData, cycleAnchorDate, normalizedMonth, cycleWindow.days[0]);
+  // Every block of the previous month is already past; listed first so the queue runs oldest to newest.
+  const previousOverdue = buildOverdueTopics(previousMonthData, cycleAnchorDate, previousMonth, 31);
+  const overdue = (includePreviousMonth ? [...previousOverdue, ...currentOverdue] : currentOverdue).slice(0, overdueLimit);
+  return { topics, cycleSummaries, overdue, overdueCounts: { currentMonth: currentOverdue.length, previousMonth: previousOverdue.length } };
 }
 
 export async function getReflectionTopicsForWindow(
@@ -473,6 +481,36 @@ export async function getReflectionTopicsForWindow(
   const topics = buildTopicsForWindow(monthData, window);
 
   return limit ? topics.slice(0, limit) : topics;
+}
+
+export type ReflectionAttendance = { month: string; done: number; due: number; percent: number | null };
+
+/**
+ * Share of reflections done within their two-day block, per month. A block counts
+ * once it has ended (or once it is done early), so an open block never lowers it.
+ */
+export async function getReflectionAttendance(userId: string, todayKey = getSaoPauloDateKey()) {
+  await ensureSenderoSeeded();
+  const currentMonth = todayKey.slice(0, 7);
+  const previousMonth = shiftReflectionMonthKey(currentMonth, -1);
+  const [current, previous] = await Promise.all([
+    loadReflectionMonthData(userId, currentMonth),
+    loadReflectionMonthData(userId, previousMonth),
+  ]);
+  return { current: monthAttendance(current, currentMonth, todayKey), previous: monthAttendance(previous, previousMonth, todayKey) };
+}
+
+function monthAttendance(monthData: ReflectionMonthData, monthKey: string, todayKey: string): ReflectionAttendance {
+  let done = 0;
+  let due = 0;
+  for (let day = 1; day <= 29; day += 2) {
+    const window = getReflectionCycleWindow(new Date(), day, monthKey);
+    const ended = (window.dateKeys.at(-1) ?? window.dateKeys[0]) < todayKey;
+    for (const topic of buildTopicsForWindow(monthData, window)) {
+      if (topic.status === "feita") { done += 1; due += 1; } else if (ended) due += 1;
+    }
+  }
+  return { month: monthKey, done, due, percent: due ? Math.round(done / due * 100) : null };
 }
 
 export async function getOverdueReflectionTopics(
