@@ -18,7 +18,7 @@ import { getSaoPauloDateKey } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-export default async function RefletirPage({ searchParams }: { searchParams?: Promise<{ dia?: string; mes?: string; registroAD?: string }> }) {
+export default async function RefletirPage({ searchParams }: { searchParams?: Promise<{ dia?: string; mes?: string; registroAD?: string; fila?: string }> }) {
   const params = await searchParams;
   const selectedCycleDay = params?.dia ? Number(params.dia) : undefined;
   const selectedMonth = normalizeReflectionMonthKey(params?.mes);
@@ -26,6 +26,7 @@ export default async function RefletirPage({ searchParams }: { searchParams?: Pr
   const previousMonth = shiftReflectionMonthKey(selectedMonth, -1);
   const nextMonth = shiftReflectionMonthKey(selectedMonth, 1);
   const todayKey = getSaoPauloDateKey();
+  const includePreviousMonth = params?.fila === "anterior";
   const user = await getActiveUser().catch((error) => {
     console.error("Failed to load active user on /refletir", error);
     return null;
@@ -48,17 +49,19 @@ export default async function RefletirPage({ searchParams }: { searchParams?: Pr
   let cycleSummaries: ReflectionCycleSummary[] = [];
   let overdueTopics: OverdueReflectionTopic[] = [];
   let stats = { totalReflections: 0, topics: 0 };
+  let overdueCounts = { currentMonth: 0, previousMonth: 0 };
   const cycleWindow = getReflectionCycleWindow(user.cycleAnchorDate, selectedCycleDay, selectedMonth);
   const currentWindow = getReflectionCycleWindow(user.cycleAnchorDate, getCurrentReflectionCycleDay(), currentMonth);
 
   try {
     const [reflectionData, loadedStats] = await Promise.all([
-      getReflectionPageData(user.id, user.cycleAnchorDate, selectedCycleDay, selectedMonth, 200),
+      getReflectionPageData(user.id, user.cycleAnchorDate, selectedCycleDay, selectedMonth, 400, includePreviousMonth),
       getReflectionStats(user.id),
     ]);
     topics = reflectionData.topics;
     cycleSummaries = reflectionData.cycleSummaries;
     overdueTopics = reflectionData.overdue;
+    overdueCounts = reflectionData.overdueCounts;
     stats = loadedStats;
   } catch (error) {
     console.error("Failed to load /refletir data", error);
@@ -165,7 +168,7 @@ export default async function RefletirPage({ searchParams }: { searchParams?: Pr
         </div>
       </section>
 
-      <section className="mt-7 border-t border-line pt-5">
+      <section id="fila" className="mt-7 scroll-mt-4 border-t border-line pt-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-2 text-xs font-semibold uppercase text-red-700"><AlertCircle className="h-4 w-4" /> Fila de recuperação</p>
@@ -173,6 +176,10 @@ export default async function RefletirPage({ searchParams }: { searchParams?: Pr
             <p className="mt-1 text-sm text-ink/60">Da mais antiga para a mais recente. É só continuar rolando e responder.</p>
           </div>
           <span className="inline-flex min-w-9 items-center justify-center rounded-full bg-red-100 px-2.5 py-1 text-sm font-bold text-red-800">{overdueTopics.length}</span>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Período da fila">
+          <QueueFilter href={queueHref(selectedMonth, cycleWindow.days[0], false)} active={!includePreviousMonth} label={`${capitalize(formatMonthName(selectedMonth))} · ${overdueCounts.currentMonth}`} />
+          <QueueFilter href={queueHref(selectedMonth, cycleWindow.days[0], true)} active={includePreviousMonth} label={`+ ${formatMonthName(shiftReflectionMonthKey(selectedMonth, -1))} · ${overdueCounts.previousMonth}`} />
         </div>
         {overdueTopics.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
@@ -268,6 +275,26 @@ function getCycleColorClass({
   if (!summary || summary.total === 0 || summary.pending === 0) return "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300";
   if (summary.done > 0) return "bg-amber-100 text-amber-900 ring-1 ring-amber-300";
   return "bg-red-100 text-red-900 ring-1 ring-red-300";
+}
+
+function QueueFilter({ href, active, label }: { href: string; active: boolean; label: string }) {
+  return (
+    <Link prefetch={false} href={href} aria-current={active ? "true" : undefined} className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-semibold ${active ? "border-ink bg-ink text-paper" : "border-line bg-white text-ink"}`}>
+      {label}
+    </Link>
+  );
+}
+
+function queueHref(month: string, day: number, includePreviousMonth: boolean) {
+  return `/refletir?mes=${month}&dia=${day}${includePreviousMonth ? "&fila=anterior" : ""}#fila`;
+}
+
+function formatMonthName(monthKey: string) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" }).format(new Date(`${monthKey}-15T12:00:00.000Z`));
+}
+
+function capitalize(text: string) {
+  return text.charAt(0).toLocaleUpperCase("pt-BR") + text.slice(1);
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {

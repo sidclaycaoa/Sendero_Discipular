@@ -85,3 +85,26 @@ test("saving the diary marks the 'Escrever o Diário' practice exactly once", as
   assert.equal(rows.length, 1);
   assert.equal(rows[0].count, 1);
 });
+
+test("the recovery queue shows the current month and can include the previous one", async () => {
+  const { db, call, today } = await setup();
+  const now = new Date().toISOString();
+  const category = db.sqlite.prepare('SELECT id FROM "Category" LIMIT 1').get().id;
+  // One theme scheduled on every block, never answered.
+  db.sqlite.prepare('INSERT INTO "ReflectionTemplate" (id,userId,topic,description,categoryId,cycleDays,period,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run("tpl", "u1", "Tema de teste", "d", category, JSON.stringify(Array.from({ length: 30 }, (_, i) => i + 1)), "MORNING", now, now);
+  const text = async (path) => (await (await call(path)).text()).replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+  const monthOnly = await text("/refletir");
+  const withPrevious = await text("/refletir?fila=anterior");
+  const currentCount = Number(/Pendências anteriores .*? (\d+) /.exec(monthOnly)[1]);
+  const combinedCount = Number(/Pendências anteriores .*? (\d+) /.exec(withPrevious)[1]);
+  assert.equal(combinedCount - currentCount, 15, "all 15 blocks of the previous month join the queue");
+  assert.match(monthOnly, /\+ \p{L}+ · 15/u);
+
+  const home = await text("/inicio");
+  assert.match(home, /Atendimento às reflexões/);
+  assert.match(home, /meta 90 ?%/);
+  assert.match(home, /Faltam 8 reflex/);
+  void today;
+});
