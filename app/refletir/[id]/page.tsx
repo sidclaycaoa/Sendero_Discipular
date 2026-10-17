@@ -53,6 +53,7 @@ export default async function ReflectionWritePage({
       </Link>
 
       <ReflectionWriter
+        key={`${reflection.templateId}:${entryDateKey}`}
         reflection={reflection}
         initialText={initialText}
         dateKey={entryDateKey}

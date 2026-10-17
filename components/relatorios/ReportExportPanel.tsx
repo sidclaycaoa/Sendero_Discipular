@@ -24,7 +24,6 @@ export function ReportExportPanel() {
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     params.set("sections", selectedSections.join(","));
-    params.set("t", String(Date.now()));
     return `/api/reports/export?${params.toString()}`;
   }, [from, selectedSections, to]);
 
