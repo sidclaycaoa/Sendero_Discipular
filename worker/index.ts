@@ -2,11 +2,13 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { setSenderoDb } from "../lib/db/bindings";
+import { handleAuth } from "./auth";
 import { handleMcpRequest } from "./mcp";
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  SENDERO_SENHA?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -29,8 +31,17 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const blocked = await handleAuth(request, env);
+    if (blocked) return blocked;
+
     setSenderoDb(env.DB);
     const url = new URL(request.url);
+
+    // Assets run behind the login gate (run_worker_first), so serve them here.
+    if (request.method === "GET" || request.method === "HEAD") {
+      const asset = await env.ASSETS.fetch(request);
+      if (asset.status !== 404) return asset;
+    }
 
     if (url.pathname === "/mcp") {
       return handleMcpRequest(request, env.DB);

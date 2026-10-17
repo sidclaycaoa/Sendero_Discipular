@@ -33,9 +33,11 @@ test("AD: migrations, MCP, explicit consent, same-day records, source validation
   db.sqlite.prepare('INSERT INTO "User" (id,email,name,cycleAnchorDate,createdAt,updatedAt) VALUES (?,?,?,?,?,?)').run("test-user", "sidclay@example.com", "Teste AD", `${date}T00:00:00Z`, now, now);
   const { default: worker } = await import(new URL("../dist/server/index.js", import.meta.url));
   const ctx = { waitUntil() {}, passThroughOnException() {} };
-  const env = { DB: db, ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+  const env = { DB: db, SENDERO_SENHA: "senha-de-teste", ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } };
+  const login = await worker.fetch(new Request("https://sendero.example/entrar", { method: "POST", body: new URLSearchParams({ senha: env.SENDERO_SENHA }) }), env, ctx);
+  const cookie = login.headers.get("set-cookie").split(";")[0];
   async function request(path, body) {
-    return worker.fetch(new Request(`https://sendero.example${path}`, { method: body ? "POST" : "GET", headers: body ? { "Content-Type": "application/json", Accept: "application/json, text/event-stream" } : { Accept: "text/html" }, body: body ? JSON.stringify(body) : undefined }), env, ctx);
+    return worker.fetch(new Request(`https://sendero.example${path}`, { method: body ? "POST" : "GET", headers: body ? { "Content-Type": "application/json", Accept: "application/json, text/event-stream", cookie } : { Accept: "text/html", cookie }, body: body ? JSON.stringify(body) : undefined }), env, ctx);
   }
   let sequence = 0;
   async function rpc(method, params = {}) { const r = await request("/mcp", { jsonrpc: "2.0", id: ++sequence, method, params }); assert.equal(r.status, 200); return await r.json(); }
