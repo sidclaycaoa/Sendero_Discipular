@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
+import { LockGuard } from "@/components/app/LockGuard";
 
 const navItems = [
   { href: "/inicio", label: "Inicio", icon: Home },
@@ -16,29 +17,10 @@ const navItems = [
 
 // After this long in the background the app reopens on Início, like a native app.
 const RETURN_HOME_AFTER_MS = 30 * 60 * 1000;
-const HIDDEN_AT_KEY = "sendero:hiddenAt";
 
 /** Screens where the user may be mid-writing; never navigate away from them. */
 function isWritingScreen(pathname: string) {
   return pathname === "/diario" || pathname === "/configuracoes" || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
-}
-
-function useReturnHomeAfterIdle(pathname: string, goHome: () => void) {
-  useEffect(() => {
-    function onVisibilityChange() {
-      try {
-        if (document.visibilityState === "hidden") {
-          window.localStorage.setItem(HIDDEN_AT_KEY, String(Date.now()));
-          return;
-        }
-        const hiddenAt = Number(window.localStorage.getItem(HIDDEN_AT_KEY) ?? 0);
-        window.localStorage.removeItem(HIDDEN_AT_KEY);
-        if (hiddenAt && Date.now() - hiddenAt > RETURN_HOME_AFTER_MS && !isWritingScreen(pathname)) goHome();
-      } catch {}
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [pathname, goHome]);
 }
 
 export function AppShell({ children, showDailyTonic = true }: { children: ReactNode; showDailyTonic?: boolean }) {
@@ -46,7 +28,9 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const visiblePendingHref = pendingHref === pathname ? null : pendingHref;
-  useReturnHomeAfterIdle(pathname, goHome);
+  function onReturn(awayMs: number) {
+    if (awayMs > RETURN_HOME_AFTER_MS && !isWritingScreen(pathname)) goHome();
+  }
 
   function goHome() {
     if (pathname === "/inicio" || pathname === "/") {
@@ -59,6 +43,7 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fffaf0_0,#f7f4ed_34%,#ece5d7_100%)] text-ink">
+      <LockGuard onReturn={onReturn} />
       {visiblePendingHref ? <div className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-clay" aria-hidden="true" /> : null}
 
       <div className="mx-auto grid min-h-screen w-full max-w-[1440px] md:grid-cols-[230px_minmax(0,1fr)]">
