@@ -37,4 +37,4 @@ O endpoint MCP `/mcp` está no código, mas a conexão do plugin AD continua apo
 
 Nota de implantação: confira o commit publicado no histórico de builds antes de importar os dados.
 
-A branch `cloudflare` é a fonte atual do deploy de produção. Este commit verifica a reconexão do build automático.
+A branch `cloudflare` é a fonte atual do deploy de produção. A integração GitHub foi autorizada para este repositório; conferir o commit publicado no Worker.
