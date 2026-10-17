@@ -26,7 +26,7 @@ class D1 {
 
 async function setup() {
   const db = new D1();
-  for (const file of (await readdir(new URL("../drizzle/", import.meta.url))).filter(f => f.endsWith(".sql")).sort()) db.sqlite.exec(await readFile(new URL(`../drizzle/${file}`, import.meta.url), "utf8"));
+  for (const file of (await readdir(new URL("../migrations/", import.meta.url))).filter(f => f.endsWith(".sql")).sort()) db.sqlite.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
   const now = new Date().toISOString();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   db.sqlite.prepare('INSERT INTO "User" (id,email,name,cycleAnchorDate,createdAt,updatedAt) VALUES (?,?,?,?,?,?)').run("u1", "sidclay@example.com", "Teste", `${today}T00:00:00Z`, now, now);
@@ -107,4 +107,35 @@ test("the recovery queue shows the current month and can include the previous on
   assert.match(home, /meta 90 ?%/);
   assert.match(home, /Faltam 8 reflex/);
   void today;
+});
+
+test("migration 0006 turns ISO dates into plain keys without losing or duplicating rows", async () => {
+  const { db } = await setup();
+  const now = new Date().toISOString();
+  const category = db.sqlite.prepare('SELECT id FROM "Category" LIMIT 1').get().id;
+  db.sqlite.prepare('INSERT INTO "ReflectionTemplate" (id,userId,topic,description,categoryId,cycleDays,period,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?)').run("tpl", "u1", "T", "d", category, "[1,2]", "MORNING", now, now);
+  // Rows as the GPT version stored them.
+  db.sqlite.prepare('INSERT INTO "ReflectionEntry" (id,userId,templateId,date,cycleDay,contentText,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?)').run("r1", "u1", "tpl", "2026-09-01T00:00:00.000Z", 1, "texto", now, now);
+  db.sqlite.prepare('INSERT INTO "DiaryEntry" (id,userId,date,fixedAnswer,rotatingAnswers,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)').run("d1", "u1", "2026-09-01T00:00:00.000Z", "a", "{}", now, now);
+  db.sqlite.prepare('INSERT INTO "TaskOccurrence" (id,userId,title,dueDate,categoryId,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)').run("k1", "u1", "t", "2026-09-02T00:00:00.000Z", category, now, now);
+  db.sqlite.exec(await readFile(new URL("../migrations/0006_dates_and_integrity.sql", import.meta.url), "utf8"));
+  assert.equal(db.sqlite.prepare('SELECT date FROM "ReflectionEntry" WHERE id = ?').get("r1").date, "2026-09-01");
+  assert.equal(db.sqlite.prepare('SELECT date FROM "DiaryEntry" WHERE id = ?').get("d1").date, "2026-09-01");
+  assert.equal(db.sqlite.prepare('SELECT dueDate FROM "TaskOccurrence" WHERE id = ?').get("k1").dueDate, "2026-09-02");
+  assert.equal(db.sqlite.prepare('SELECT contentText FROM "ReflectionEntry" WHERE id = ?').get("r1").contentText, "texto");
+});
+
+test("editing a not-yet-migrated day updates that row instead of creating a second one", async () => {
+  const { db, call } = await setup();
+  const now = new Date().toISOString();
+  const category = db.sqlite.prepare('SELECT id FROM "Category" LIMIT 1').get().id;
+  db.sqlite.prepare('INSERT INTO "ReflectionTemplate" (id,userId,topic,description,categoryId,cycleDays,period,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?)').run("tpl", "u1", "T", "d", category, "[1,2]", "MORNING", now, now);
+  db.sqlite.prepare('INSERT INTO "ReflectionEntry" (id,userId,templateId,date,cycleDay,contentText,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?)').run("r1", "u1", "tpl", "2026-09-01T00:00:00.000Z", 1, "antes", now, now);
+  db.sqlite.prepare('INSERT INTO "DiaryEntry" (id,userId,date,fixedAnswer,rotatingAnswers,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)').run("d1", "u1", "2026-09-01T00:00:00.000Z", "a", "{}", now, now);
+  await call("/api/reflections/entry", { templateId: "tpl", date: "2026-09-01", contentText: "depois" });
+  await call("/api/diary", { date: "2026-09-01", answers: ["x", "y", "z", "w"] });
+  const reflections = db.sqlite.prepare('SELECT id, date, contentText FROM "ReflectionEntry" WHERE templateId = ?').all("tpl");
+  assert.deepEqual(reflections.map((r) => ({ ...r })), [{ id: "r1", date: "2026-09-01", contentText: "depois" }]);
+  const diaries = db.sqlite.prepare('SELECT id, date FROM "DiaryEntry"').all();
+  assert.deepEqual(diaries.map((r) => ({ ...r })), [{ id: "d1", date: "2026-09-01" }]);
 });

@@ -11,7 +11,7 @@ O build Vinext/Workers, a preparação do D1 e os testes foram validados localme
 1. Em `wrangler.jsonc`, use o nome exato do Worker criado na sua conta e associe o banco D1 correto ao binding `DB`. Troque o `database_id` provisório pelo ID desse banco.
 2. O Worker inteiro fica atrás de um login por senha (`worker/auth.ts`). Crie o secret `SENDERO_SENHA` em **Settings → Runtime variables and secrets** (tipo *Secret*). Sem ele, o app fica fechado. Trocar a senha desconecta todas as sessões.
 3. Conecte este repositório privado em Workers Builds. Use `npm ci && npm run build` como build e `npx wrangler deploy --config dist/server/wrangler.json` como deploy. Não ative builds automáticos até concluir a proteção.
-4. Aplique as migrações no D1 remoto com `npx wrangler d1 migrations apply sendero-discipular --remote` (ajuste o nome se diferente). Depois importe o backup privado gerado conforme abaixo.
+4. O formato do banco vive **só** em `migrations/` (SQL numerado). Para mudar o banco, crie o próximo arquivo (`0007_...sql`) e aplique com `npx wrangler d1 migrations apply sendero-discipular --remote`. O app não cria tabelas sozinho; o histórico do que já foi aplicado fica na tabela `d1_migrations`.
 
 ## Importação privada
 
