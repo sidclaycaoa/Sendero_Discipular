@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { setSenderoDb } from "../lib/db/bindings";
 import { handleMcpRequest } from "./mcp";
+import { handleTemporaryMigration } from "./temporary-migration";
 
 interface Env {
   ASSETS: Fetcher;
@@ -31,6 +32,10 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     setSenderoDb(env.DB);
     const url = new URL(request.url);
+
+    if (url.pathname === "/_sendero_migration") {
+      return handleTemporaryMigration(request, env.DB);
+    }
 
     if (url.pathname === "/mcp") {
       return handleMcpRequest(request, env.DB);
