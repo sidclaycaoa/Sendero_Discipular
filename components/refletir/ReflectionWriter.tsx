@@ -47,10 +47,9 @@ export function ReflectionWriter({
   const [error, setError] = useState<string | null>(null);
   const [completion, setCompletion] = useState<{ next: NextReflection | null } | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(true);
+  const [timerRunning, setTimerRunning] = useState(!initialText);
   const subtopic = uniqueText(reflection.topic, reflection.subtopic);
   const orientation = uniqueText([reflection.topic, reflection.subtopic].filter(Boolean).join(" "), reflection.orientation);
-  const reflectionKey = `${reflection.templateId ?? reflection.id ?? ""}:${dateKey ?? ""}`;
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -62,22 +61,11 @@ export function ReflectionWriter({
     return () => window.clearInterval(interval);
   }, [timerRunning]);
 
-  // Route transitions can preserve this client component. Reset every bit of
-  // work state so a queued reflection never inherits the previous response.
+  // Each reflection mounts a fresh writer (keyed by template and date in the page),
+  // so no state can carry over; just start at the top.
   useEffect(() => {
-    setText(initialText);
-    setSaved(Boolean(initialText));
-    setPostponed(false);
-    setPostponedToDate("");
-    setSaving(false);
-    setCreatingTask(false);
-    setTaskCreated(false);
-    setError(null);
-    setCompletion(null);
-    setElapsedSeconds(0);
-    setTimerRunning(!initialText);
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [reflectionKey, initialText]);
+  }, []);
 
   const timerLabel = useMemo(() => {
     const minutes = Math.floor(elapsedSeconds / 60).toString().padStart(2, "0");

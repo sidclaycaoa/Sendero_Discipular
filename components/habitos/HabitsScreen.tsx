@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Clock3, Droplets, Minus, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { AppShell, Card, ModuleHeader } from "@/components/app/AppShell";
@@ -16,7 +16,16 @@ export function HabitsScreen({ dashboard }: Props) {
   const [configOpen, setConfigOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<DbHabit | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
-  useEffect(() => setData(dashboard), [dashboard]);
+  const [error, setError] = useState<string | null>(null);
+  // Saves for the same habit go out one after another, so the last tap always wins;
+  // the screen reloads from the server only once the last pending save is done.
+  const queues = useRef(new Map<string, { tail: Promise<void>; pending: number }>());
+  // New server data (after router.refresh) replaces the optimistic copy.
+  const [serverDashboard, setServerDashboard] = useState(dashboard);
+  if (dashboard !== serverDashboard) {
+    setServerDashboard(dashboard);
+    setData(dashboard);
+  }
 
   const daily = data?.habits.filter((habit) => habit.cadence === "DAILY") ?? [];
   const practiceGroups: Array<{ code: DbHabit["practiceGroup"]; title: string; detail: string; tone: "red" | "yellow" | "green" }> = [
@@ -37,11 +46,21 @@ export function HabitsScreen({ dashboard }: Props) {
     const next = Math.max(0, progress);
     const countForToday = habit.cadence === "WEEKLY" ? Math.max(0, next - (habit.progress - habit.todayCount)) : next;
     setData((current) => current ? { ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, progress: next, todayCount: habit.cadence === "TIME_BASED" ? item.todayCount : countForToday, note } : item) } : current);
-    setSaving(habit.id);
+    setError(null);
+    const payload = { habitId: habit.id, dateKey: data.dateKey, count: habit.cadence === "TIME_BASED" ? 0 : countForToday, minutes: habit.cadence === "TIME_BASED" ? next : 0, note };
+    const queue = queues.current.get(habit.id) ?? { tail: Promise.resolve(), pending: 0 };
+    const save = queue.tail.then(() => request("/api/habits/progress", "POST", payload));
+    queue.tail = save.catch(() => undefined);
+    queue.pending += 1;
+    queues.current.set(habit.id, queue);
     try {
-      await request("/api/habits/progress", "POST", { habitId: habit.id, dateKey: data.dateKey, count: habit.cadence === "TIME_BASED" ? 0 : countForToday, minutes: habit.cadence === "TIME_BASED" ? next : 0, note });
-      router.refresh();
-    } catch { router.refresh(); } finally { setSaving(null); }
+      await save;
+    } catch {
+      setError(`Não foi possível salvar “${habit.title}”. Verifique a conexão e tente de novo.`);
+    } finally {
+      queue.pending -= 1;
+      if ([...queues.current.values()].every((item) => item.pending === 0)) router.refresh();
+    }
   }
 
   async function addWater(amount: number) {
@@ -64,7 +83,8 @@ export function HabitsScreen({ dashboard }: Props) {
 
   return <AppShell>
     <ModuleHeader eyebrow="Prática cotidiana" title="Hábitos" description="Pequenas escolhas repetidas, com presença e direção." action={<button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-paper" onClick={() => { setEditingHabit(null); setConfigOpen(true); }}><Plus className="h-4 w-4" /> Novo</button>} />
-    <HabitConfigModal open={configOpen} habit={editingHabit} onClose={() => { setConfigOpen(false); setEditingHabit(null); }} onSaved={() => { setConfigOpen(false); setEditingHabit(null); router.refresh(); }} />
+    <HabitConfigModal key={configOpen ? editingHabit?.id ?? "novo" : "fechado"} open={configOpen} habit={editingHabit} onClose={() => { setConfigOpen(false); setEditingHabit(null); }} onSaved={() => { setConfigOpen(false); setEditingHabit(null); router.refresh(); }} />
+    {error ? <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
     <section className="mt-5 grid gap-3 lg:grid-cols-[1.25fr_.75fr]">
       <WaterCard waterMl={data.waterMl} goalMl={data.waterGoalMl} customWater={customWater} setCustomWater={setCustomWater} addWater={addWater} saving={saving === "water"} />
       <Card className="flex flex-col justify-between !bg-ink !text-paper"><div className="flex items-center justify-between"><p className="text-sm font-semibold text-paper/75">Ritmo de hoje</p><Sparkles className="h-5 w-5 text-amber-300" /></div><div className="mt-5 flex items-end justify-between"><div><p className="text-4xl font-semibold tracking-tight">{completed}<span className="text-xl text-paper/55">/{daily.length}</span></p><p className="mt-1 text-sm text-paper/70">práticas concluídas</p></div><div className="grid h-16 w-16 place-items-center rounded-full border-4 border-paper/20 text-sm font-bold" style={{ background: `conic-gradient(#f6c36a ${percentage * 3.6}deg, transparent 0deg)` }}><span className="grid h-12 w-12 place-items-center rounded-full !bg-ink">{percentage}%</span></div></div></Card>
@@ -128,10 +148,9 @@ function WeeklyHabitCard({ habit, saving, onChange, onEdit, onDelete }: { habit:
 }
 
 function TimedHabitCard({ habit, saving, onChange, onEdit, onDelete }: { habit: DbHabit; saving: boolean; onChange: (value: number, note?: string) => void; onEdit: () => void; onDelete: () => void }) {
-  const [custom, setCustom] = useState(""); const [note, setNote] = useState(habit.note); useEffect(() => setNote(habit.note), [habit.note]);
+  const [custom, setCustom] = useState(""); const [note, setNote] = useState(habit.note); const [savedNote, setSavedNote] = useState(habit.note); if (habit.note !== savedNote) { setSavedNote(habit.note); setNote(habit.note); }
   return <Card><div className="flex gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet-50 text-violet-700"><Clock3 className="h-4 w-4" /></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-semibold text-ink">{habit.title}</p><p className="mt-1 text-xs text-slate-500">{habit.progress} min de {habit.targetCount} min</p></div><Actions onEdit={onEdit} onDelete={onDelete} /></div><Progress value={habit.progress} target={habit.targetCount} /><div className="mt-4 flex flex-wrap gap-2">{[15, 30, 45, 60].map((value) => <button type="button" disabled={saving} key={value} className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700" onClick={() => onChange(habit.progress + value)}>+{value} min</button>)}</div><div className="mt-3 grid grid-cols-[1fr_40px] gap-2"><input className="min-h-10 rounded-xl border border-line px-3 text-sm" inputMode="numeric" placeholder="Outros minutos" value={custom} onChange={(event) => setCustom(event.target.value)} /><button type="button" className="grid place-items-center rounded-xl bg-ink text-paper" onClick={() => { const value = Number(custom); if (value > 0) { onChange(habit.progress + value); setCustom(""); } }}><Plus className="h-4 w-4" /></button></div><textarea className="mt-3 min-h-20 w-full rounded-xl border border-line p-3 text-sm outline-none focus:border-olive" placeholder="Uma nota sobre esta prática (opcional)" value={note} onChange={(event) => setNote(event.target.value)} /><button type="button" className="mt-2 text-xs font-semibold text-olive" onClick={() => onChange(habit.progress, note)}>Salvar nota</button></div></div></Card>;
 }
 
-function SectionTitle({ icon, label, detail }: { icon: string; label: string; detail: string }) { return <div className="mb-3"><p className="text-xs font-bold uppercase tracking-wider text-olive">{icon} {label}</p><p className="mt-1 text-sm text-slate-500">{detail}</p></div>; }
 function Actions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) { return <div className="flex gap-1"><button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-paper" onClick={onEdit} aria-label="Editar hábito"><Pencil className="h-4 w-4" /></button><button type="button" className="rounded-lg p-2 text-rose-600 hover:bg-rose-50" onClick={onDelete} aria-label="Excluir hábito"><Trash2 className="h-4 w-4" /></button></div>; }
 function Progress({ value, target }: { value: number; target: number }) { return <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-paper"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${Math.min(100, Math.round((value / target) * 100))}%` }} /></div>; }

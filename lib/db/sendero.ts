@@ -944,7 +944,9 @@ export async function saveDiaryEntry(userId: string, dateKey: string, answers: s
   const now = new Date().toISOString();
   const id = newId("diary");
   const fixedAnswer = answers.slice(0, 2).join("\n\n");
+  // `answers` keeps each response intact; fixedAnswer stays filled for exports and older readers.
   const rotatingAnswers = JSON.stringify({
+    answers: answers.slice(0, 4),
     thirdAnswer: answers[2] ?? "",
     tonicAnswer: answers[3] ?? "",
     tonic: { id: tonic.id, code: tonic.code, title: tonic.title, phaseTitle: tonic.phase.title, phaseObjective: tonic.phase.objective },
@@ -958,14 +960,7 @@ export async function saveDiaryEntry(userId: string, dateKey: string, answers: s
   const diaryHabit = await db.prepare('SELECT id, targetCount FROM "HabitTemplate" WHERE userId = ? AND title = ? AND isActive = 1 LIMIT 1')
     .bind(userId, "Escrever o Diário").first<{ id: string; targetCount: number }>();
   if (diaryHabit) {
-    const existingLog = await db.prepare('SELECT id FROM "HabitLog" WHERE userId = ? AND habitId = ? AND date = ? LIMIT 1')
-      .bind(userId, diaryHabit.id, dateKey).first<{ id: string }>();
-    if (existingLog) {
-      await db.prepare('UPDATE "HabitLog" SET count = ? WHERE id = ?').bind(Math.max(1, Number(diaryHabit.targetCount)), existingLog.id).run();
-    } else {
-      await db.prepare('INSERT INTO "HabitLog" (id, userId, habitId, date, count, minutes, note, createdAt) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)')
-        .bind(newId("habitlog"), userId, diaryHabit.id, dateKey, Math.max(1, Number(diaryHabit.targetCount)), now).run();
-    }
+    await saveHabitProgress({ userId, habitId: diaryHabit.id, dateKey, count: Math.max(1, Number(diaryHabit.targetCount)) });
   }
   const saved = await db.prepare('SELECT id FROM "DiaryEntry" WHERE userId = ? AND date = ?').bind(userId, date).first<{ id: string }>();
   return { id: saved?.id ?? id };
@@ -977,9 +972,11 @@ export async function getDiaryEntry(userId: string, dateKey: string) {
     'SELECT * FROM "DiaryEntry" WHERE userId = ? AND substr(date, 1, 10) = ? LIMIT 1'
   ).bind(userId, dateKey).first<{ id: string; fixedAnswer: string; rotatingAnswers: string }>();
   if (!entry) return null;
-  const rotating = parseJson<{ thirdAnswer?: string; tonicAnswer?: string }>(entry.rotatingAnswers, {});
-  const fixed = entry.fixedAnswer.split("\n\n");
-  return { id: entry.id, answers: [fixed[0] ?? "", fixed[1] ?? "", rotating.thirdAnswer ?? "", rotating.tonicAnswer ?? ""] };
+  const rotating = parseJson<{ answers?: string[]; thirdAnswer?: string; tonicAnswer?: string }>(entry.rotatingAnswers, {});
+  if (Array.isArray(rotating.answers)) return { id: entry.id, answers: [0, 1, 2, 3].map((index) => rotating.answers?.[index] ?? "") };
+  // Older entries joined answers 1 and 2 with a blank line; never drop text when an answer had paragraphs.
+  const [first = "", ...rest] = entry.fixedAnswer.split("\n\n");
+  return { id: entry.id, answers: [first, rest.join("\n\n"), rotating.thirdAnswer ?? "", rotating.tonicAnswer ?? ""] };
 }
 
 export async function createHabitTemplate({ userId, title, cadence, targetCount, description, practiceGroup = "HABIT" }: {
@@ -1054,24 +1051,26 @@ export async function saveHabitProgress({ userId, habitId, dateKey, count, minut
 }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const existing = await db.prepare('SELECT id, note FROM "HabitLog" WHERE userId = ? AND habitId = ? AND date = ? LIMIT 1')
-    .bind(userId, habitId, dateKey).first<{ id: string; note: string | null }>();
+  const existing = note === undefined
+    ? await db.prepare('SELECT note FROM "HabitLog" WHERE userId = ? AND habitId = ? AND date = ? AND note IS NOT NULL LIMIT 1')
+      .bind(userId, habitId, dateKey).first<{ note: string | null }>()
+    : null;
   const safeCount = Math.max(0, Math.round(count));
   const safeMinutes = Math.max(0, Math.round(minutes ?? 0));
   const savedNote = note?.trim() ?? existing?.note ?? "";
 
-  if (existing && safeCount === 0 && safeMinutes === 0 && !savedNote) {
-    await db.prepare('DELETE FROM "HabitLog" WHERE id = ?').bind(existing.id).run();
+  // The day's value is absolute: replace whatever is stored in one transaction, so
+  // two quick taps can never leave two rows that the dashboard would add up.
+  const clear = db.prepare('DELETE FROM "HabitLog" WHERE userId = ? AND habitId = ? AND date = ?').bind(userId, habitId, dateKey);
+  if (safeCount === 0 && safeMinutes === 0 && !savedNote) {
+    await clear.run();
     return;
   }
-  if (existing) {
-    await db.prepare('UPDATE "HabitLog" SET count = ?, minutes = ?, note = ? WHERE id = ?')
-      .bind(safeCount, safeMinutes || null, savedNote || null, existing.id).run();
-    return;
-  }
-  if (safeCount === 0 && safeMinutes === 0 && !savedNote) return;
-  await db.prepare('INSERT INTO "HabitLog" (id, userId, habitId, date, count, minutes, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(newId("habitlog"), userId, habitId, dateKey, safeCount, safeMinutes || null, savedNote || null, new Date().toISOString()).run();
+  await db.batch([
+    clear,
+    db.prepare('INSERT INTO "HabitLog" (id, userId, habitId, date, count, minutes, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(newId("habitlog"), userId, habitId, dateKey, safeCount, safeMinutes || null, savedNote || null, new Date().toISOString()),
+  ]);
 }
 
 export async function addWaterLog(userId: string, dateKey: string, amountMl: number) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 import type { DbHabit } from "@/lib/db/sendero";
 
@@ -8,25 +8,16 @@ type Cadence = "DAILY" | "WEEKLY" | "TIME_BASED";
 type PracticeGroup = "ED" | "PSYCHOLOGY" | "HABIT";
 
 export function HabitConfigModal({ open, habit, onClose, onSaved }: { open: boolean; habit?: DbHabit | null; onClose: () => void; onSaved?: () => void }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [cadence, setCadence] = useState<Cadence>("DAILY");
-  const [practiceGroup, setPracticeGroup] = useState<PracticeGroup>("HABIT");
-  const [target, setTarget] = useState(1);
+  // Mounted fresh for each habit (keyed by the caller), so the form starts from its values.
+  const [title, setTitle] = useState(habit?.title ?? "");
+  const [description, setDescription] = useState(habit?.description ?? "");
+  const [cadence, setCadence] = useState<Cadence>(habit?.cadence ?? "DAILY");
+  const [practiceGroup, setPracticeGroup] = useState<PracticeGroup>(habit?.practiceGroup ?? "HABIT");
+  const [target, setTarget] = useState(habit?.targetCount ?? 1);
   const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle(habit?.title ?? "");
-    setDescription(habit?.description ?? "");
-    setCadence(habit?.cadence ?? "DAILY");
-    setPracticeGroup(habit?.practiceGroup ?? "HABIT");
-    setTarget(habit?.targetCount ?? 1);
-    setSaved(false); setError(null);
-  }, [open, habit]);
 
   if (!open) return null;
 
