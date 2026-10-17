@@ -14,7 +14,7 @@
       "binding": "DB",
       "database_name": "sendero-discipular",
       "database_id": "8eecf873-d8f3-44ff-b72c-74d9d573dcd1",
-      "migrations_dir": "./drizzle"
+      "migrations_dir": "./migrations"
     }
   ]
 }

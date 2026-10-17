@@ -570,7 +570,7 @@ export async function postponeReflection({ userId, templateId, originalDateKey }
 
   await db.batch([
     db.prepare('INSERT INTO "ReflectionPostponement" (id, userId, templateId, originalDate, postponedToDate, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, userId, templateId, toIsoDate(originalDateKey), toIsoDate(postponedToDate), null, now),
+      .bind(id, userId, templateId, toDateColumn(originalDateKey), toDateColumn(postponedToDate), null, now),
     db.prepare('UPDATE "ReflectionTemplate" SET cycleDays = ?, updatedAt = ? WHERE id = ?').bind(JSON.stringify(nextCycleDays), now, templateId),
   ]);
 
@@ -647,10 +647,13 @@ export async function saveTodayReflection({ userId, templateId, dateKey, content
 }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const date = toIsoDate(dateKey);
+  const date = toDateColumn(dateKey);
   const cycleDay = calculateCycleDay(dateKey, cycleAnchorDate.toISOString().slice(0, 10));
   const now = new Date().toISOString();
   const id = newId("reflection");
+  // Until every environment has run migration 0006, an older row may still hold an ISO timestamp.
+  await db.prepare('UPDATE "ReflectionEntry" SET date = ? WHERE userId = ? AND templateId = ? AND substr(date, 1, 10) = ? AND date <> ?')
+    .bind(date, userId, templateId, date, date).run();
   await db.prepare(`
     INSERT INTO "ReflectionEntry" (id, userId, templateId, date, cycleNumber, cycleDay, contentText, reflectionTimeSeconds, status, originType, originTaskId, linkedEntryId, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'DONE', 'MANUAL', NULL, NULL, ?, ?)
@@ -730,11 +733,11 @@ export async function createManualTask({ userId, title, dueDate, priority, descr
   await db.prepare(`
     INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, 'MANUAL', NULL, ?, ?)
-  `).bind(id, userId, seriesId, title.trim(), description?.trim() || null, toIsoDate(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, now, now).run();
+  `).bind(id, userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, now, now).run();
   if (seriesId) {
     const dates = recurrenceDates(dueDate, recurrence!);
     await db.batch(dates.slice(1).map((date) => db.prepare(`INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, 'MANUAL', NULL, ?, ?)`)
-      .bind(newId("task"), userId, seriesId, title.trim(), description?.trim() || null, toIsoDate(date), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, now, now)));
+      .bind(newId("task"), userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(date), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, now, now)));
   }
   return { id };
 }
@@ -747,7 +750,7 @@ export async function updateTaskState({ userId, taskId, completed, title, dueDat
   if (completed !== undefined) await db.prepare('UPDATE "TaskOccurrence" SET completedAt = ?, status = ?, updatedAt = ? WHERE id = ? AND userId = ?')
     .bind(completed ? new Date().toISOString() : null, completed ? "DONE" : "PLANNED", new Date().toISOString(), taskId, userId).run();
   if (title?.trim() && dueDate) await db.prepare('UPDATE "TaskOccurrence" SET title = ?, description = ?, dueDate = ?, priority = ?, updatedAt = ? WHERE id = ? AND userId = ?')
-    .bind(title.trim(), description?.trim() || null, toIsoDate(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), new Date().toISOString(), taskId, userId).run();
+    .bind(title.trim(), description?.trim() || null, toDateColumn(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), new Date().toISOString(), taskId, userId).run();
   return { id: taskId };
 }
 
@@ -801,7 +804,7 @@ export async function createShoppingItem(userId: string, title: string, dueDate?
   const now = new Date().toISOString();
   const id = newId("shopping");
   await getSenderoDb().prepare('INSERT INTO "ShoppingItem" (id, userId, title, dueDate, isChecked, createdAt, updatedAt) VALUES (?, ?, ?, ?, 0, ?, ?)')
-    .bind(id, userId, title.trim(), dueDate ? toIsoDate(dueDate) : null, now, now).run();
+    .bind(id, userId, title.trim(), dueDate ? toDateColumn(dueDate) : null, now, now).run();
   return { id };
 }
 
@@ -816,7 +819,7 @@ export async function updateShoppingItem(userId: string, id: string, { title, du
   const now = new Date().toISOString();
   if (title !== undefined || dueDate !== undefined) {
     await getSenderoDb().prepare('UPDATE "ShoppingItem" SET title = CASE WHEN ? = 1 THEN ? ELSE title END, dueDate = CASE WHEN ? = 1 THEN ? ELSE dueDate END, updatedAt = ? WHERE id = ? AND userId = ?')
-      .bind(title !== undefined ? 1 : 0, title?.trim() || null, dueDate !== undefined ? 1 : 0, dueDate ? toIsoDate(dueDate) : null, now, id, userId).run();
+      .bind(title !== undefined ? 1 : 0, title?.trim() || null, dueDate !== undefined ? 1 : 0, dueDate ? toDateColumn(dueDate) : null, now, id, userId).run();
   }
   if (checked !== undefined) await setShoppingItemChecked(userId, id, checked);
 }
@@ -977,7 +980,7 @@ function formatShortDate(dateKey: string) { return new Intl.DateTimeFormat("pt-B
 export async function saveDiaryEntry(userId: string, dateKey: string, answers: string[]) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const date = toIsoDate(dateKey);
+  const date = toDateColumn(dateKey);
   const tonic = await getDailyDiscipleshipTonic(userId, dateKey);
   const now = new Date().toISOString();
   const id = newId("diary");
@@ -989,6 +992,9 @@ export async function saveDiaryEntry(userId: string, dateKey: string, answers: s
     tonicAnswer: answers[3] ?? "",
     tonic: { id: tonic.id, code: tonic.code, title: tonic.title, phaseTitle: tonic.phase.title, phaseObjective: tonic.phase.objective },
   });
+  // Until every environment has run migration 0006, an older row may still hold an ISO timestamp.
+  await db.prepare('UPDATE "DiaryEntry" SET date = ? WHERE userId = ? AND substr(date, 1, 10) = ? AND date <> ?')
+    .bind(date, userId, date, date).run();
   await db.prepare(`
     INSERT INTO "DiaryEntry" (id, userId, date, fixedAnswer, rotatingAnswers, createdTaskIds, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, '[]', ?, ?)
@@ -1221,8 +1227,8 @@ export async function createReflectionTemplate({ userId, topic, subtopic, orient
     VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).bind(
     id, userId, topic, subtopic || null, orientation || subtopic || topic, orientation || null, categoryId,
-    JSON.stringify(cycleDays), period, endDate ? 1 : 0, startDate ? toIsoDate(startDate) : null,
-    endDate ? toIsoDate(endDate) : null, now, now,
+    JSON.stringify(cycleDays), period, endDate ? 1 : 0, startDate ? toDateColumn(startDate) : null,
+    endDate ? toDateColumn(endDate) : null, now, now,
   ).run();
   return { id };
 }
@@ -1237,7 +1243,7 @@ export async function updateReflectionTemplateSettings({ userId, templateId, cyc
   if (!existing) return null;
   await db.prepare(`
     UPDATE "ReflectionTemplate" SET cycleDays = ?, period = ?, endDate = ?, isTemporary = ?, updatedAt = ? WHERE id = ? AND userId = ?
-  `).bind(JSON.stringify(cycleDays), period ?? existing.period, endDate ? toIsoDate(endDate) : null, endDate ? 1 : 0, new Date().toISOString(), templateId, userId).run();
+  `).bind(JSON.stringify(cycleDays), period ?? existing.period, endDate ? toDateColumn(endDate) : null, endDate ? 1 : 0, new Date().toISOString(), templateId, userId).run();
   return { id: templateId };
 }
 
@@ -1365,14 +1371,14 @@ function addDays(date: Date, days: number) {
 }
 
 function addDateKeyDays(dateKey: string, days: number) {
-  const date = new Date(toIsoDate(dateKey));
+  const date = new Date(toDateColumn(dateKey));
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
 function daysBetweenDateKeys(startDate: string, endDate: string) {
-  const start = new Date(toIsoDate(startDate)).getTime();
-  const end = new Date(toIsoDate(endDate)).getTime();
+  const start = new Date(toDateColumn(startDate)).getTime();
+  const end = new Date(toDateColumn(endDate)).getTime();
   return Math.round((end - start) / 86400000);
 }
 
@@ -1386,8 +1392,9 @@ function recurrenceDates(startDate: string, recurrence: { frequency?: "daily" | 
   return result;
 }
 
-function toIsoDate(dateKey: string) {
-  return `${dateKey}T00:00:00.000Z`;
+/** Date-only columns store a plain YYYY-MM-DD key (migration 0006 normalized older ISO values). */
+function toDateColumn(dateKey: string) {
+  return dateKey.slice(0, 10);
 }
 
 function toDateKeyOrNull(value: string | null) {

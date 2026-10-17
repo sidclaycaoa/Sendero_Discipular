@@ -27,8 +27,8 @@ class D1 {
 
 test("AD: migrations, MCP, explicit consent, same-day records, source validation, unified history and exports", async () => {
   const db = new D1();
-  const migrations = (await readdir(new URL("../drizzle/", import.meta.url))).filter(f => f.endsWith(".sql")).sort();
-  for (const file of migrations) db.sqlite.exec(await readFile(new URL(`../drizzle/${file}`, import.meta.url), "utf8"));
+  const migrations = (await readdir(new URL("../migrations/", import.meta.url))).filter(f => f.endsWith(".sql")).sort();
+  for (const file of migrations) db.sqlite.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
   const now = new Date().toISOString(); const date = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   db.sqlite.prepare('INSERT INTO "User" (id,email,name,cycleAnchorDate,createdAt,updatedAt) VALUES (?,?,?,?,?,?)').run("test-user", "sidclay@example.com", "Teste AD", `${date}T00:00:00Z`, now, now);
   const { default: worker } = await import(new URL("../dist/server/index.js", import.meta.url));
