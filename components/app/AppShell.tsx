@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, BookOpenText, CalendarCheck2, CheckSquare2, Compass, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
+import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 
 const navItems = [
@@ -11,16 +11,51 @@ const navItems = [
   { href: "/refletir", label: "Refletir", icon: BookOpenText },
   { href: "/habitos", label: "Hábitos", icon: CheckSquare2 },
   { href: "/tarefas", label: "Tarefas", icon: CalendarCheck2 },
-  { href: "/diario", label: "Diário", icon: NotebookPen },
-  { href: "/caminho", label: "Caminho", icon: Compass },
-  { href: "/relatorios", label: "Relatórios", icon: BarChart3 }
+  { href: "/diario", label: "Diário", icon: NotebookPen }
 ];
+
+// After this long in the background the app reopens on Início, like a native app.
+const RETURN_HOME_AFTER_MS = 30 * 60 * 1000;
+const HIDDEN_AT_KEY = "sendero:hiddenAt";
+
+/** Screens where the user may be mid-writing; never navigate away from them. */
+function isWritingScreen(pathname: string) {
+  return pathname === "/diario" || pathname === "/configuracoes" || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
+}
+
+function useReturnHomeAfterIdle(pathname: string, goHome: () => void) {
+  useEffect(() => {
+    function onVisibilityChange() {
+      try {
+        if (document.visibilityState === "hidden") {
+          window.localStorage.setItem(HIDDEN_AT_KEY, String(Date.now()));
+          return;
+        }
+        const hiddenAt = Number(window.localStorage.getItem(HIDDEN_AT_KEY) ?? 0);
+        window.localStorage.removeItem(HIDDEN_AT_KEY);
+        if (hiddenAt && Date.now() - hiddenAt > RETURN_HOME_AFTER_MS && !isWritingScreen(pathname)) goHome();
+      } catch {}
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [pathname, goHome]);
+}
 
 export function AppShell({ children, showDailyTonic = true }: { children: ReactNode; showDailyTonic?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const visiblePendingHref = pendingHref === pathname ? null : pendingHref;
+  useReturnHomeAfterIdle(pathname, goHome);
+
+  function goHome() {
+    if (pathname === "/inicio" || pathname === "/") {
+      router.refresh();
+    } else {
+      router.push("/inicio");
+    }
+    window.scrollTo({ top: 0 });
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fffaf0_0,#f7f4ed_34%,#ece5d7_100%)] text-ink">
@@ -45,7 +80,7 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/96 px-1 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-12px_30px_rgba(31,37,40,0.10)] backdrop-blur md:hidden" aria-label="Navegação principal">
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-5 gap-1">
             {navItems.map((item) => (
               <NavLink key={item.href} item={item} pathname={pathname} pendingHref={visiblePendingHref} setPendingHref={setPendingHref} prefetchRoute={router.prefetch} mobile />
             ))}

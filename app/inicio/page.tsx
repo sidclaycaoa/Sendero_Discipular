@@ -1,5 +1,7 @@
 import { InicioScreen } from "@/components/inicio/InicioScreen";
-import { getActiveUser, getDiaryEntry, getOpenTasks, getReflectionPageData, getReflectionStats } from "@/lib/db/sendero";
+import { getActiveUser, getDailyDiscipleshipTonic, getDiaryEntry, getDiscipleshipCatalog, getOpenTasks, getReflectionPageData } from "@/lib/db/sendero";
+import { getPercursoData } from "@/lib/db/percurso";
+import type { PercursoData } from "@/lib/db/percurso";
 import type { DbReflectionTopic, OpenTask, OverdueReflectionTopic } from "@/lib/db/sendero";
 import { getSaoPauloDateKey } from "@/lib/date";
 
@@ -19,22 +21,28 @@ export default async function InicioPage() {
   let overdueReflections: OverdueReflectionTopic[] = [];
   let openTasks: OpenTask[] = [];
   let diaryDone = false;
-  let totalReflections = 0;
+  let percurso: PercursoData | null = null;
+  let tonicPosition: { current: number; total: number } | null = null;
   const todayKey = getSaoPauloDateKey();
 
   try {
-    const [reflectionData, loadedTasks, diaryEntry, stats] = await Promise.all([
+    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, tonic, catalog] = await Promise.all([
       getReflectionPageData(user.id, user.cycleAnchorDate, undefined, undefined, 60),
       getOpenTasks(user.id),
       getDiaryEntry(user.id, todayKey),
-      getReflectionStats(user.id),
+      getPercursoData(user.id, todayKey).catch((error) => { console.error("Failed to load percurso", error); return null; }),
+      getDailyDiscipleshipTonic(user.id, todayKey).catch(() => null),
+      getDiscipleshipCatalog(user.id).catch(() => []),
     ]);
 
-    topics = reflectionData.topics.slice(0, 8);
+    topics = reflectionData.topics;
     overdueReflections = reflectionData.overdue;
     openTasks = loadedTasks;
     diaryDone = Boolean(diaryEntry);
-    totalReflections = stats.totalReflections;
+    percurso = loadedPercurso;
+    const topicIds = catalog.flatMap((phase) => phase.topics.map((topic) => topic.id));
+    const position = tonic ? topicIds.indexOf(tonic.id) : -1;
+    tonicPosition = position >= 0 ? { current: position + 1, total: topicIds.length } : null;
   } catch (error) {
     console.error("Failed to load /inicio data", error);
   }
@@ -51,7 +59,8 @@ export default async function InicioPage() {
       openTasks={openTasks}
       diaryDone={diaryDone}
       todayKey={todayKey}
-      totalReflections={totalReflections}
+      percurso={percurso}
+      tonicPosition={tonicPosition}
     />
   );
 }
