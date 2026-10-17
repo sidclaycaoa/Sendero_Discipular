@@ -34,3 +34,5 @@ npx wrangler deploy --config dist/server/wrangler.json --dry-run
 ```
 
 O endpoint MCP `/mcp` está no código, mas a conexão do plugin AD continua apontando ao Site atual até existir autenticação e uma conexão nova verificadas no Worker. O antigo Site só deve ser desativado após essa validação.
+
+Nota de implantação: confira o commit publicado no histórico de builds antes de importar os dados.
