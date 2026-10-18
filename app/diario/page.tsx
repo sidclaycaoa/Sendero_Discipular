@@ -4,6 +4,8 @@ import { DiaryActions } from "@/components/diario/DiaryActions";
 import { DiaryWriter } from "@/components/diario/DiaryWriter";
 import { getActiveUser, getDailyDiscipleshipTonic, getDiaryBornTasks, getDiaryEntry } from "@/lib/db/sendero";
 import { getSaoPauloDateKey } from "@/lib/date";
+import { getLiveIdeas } from "@/lib/db/escola";
+import { LiveIdeasList } from "@/components/escola/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -24,14 +26,18 @@ export default async function DiarioPage() {
   const today = getTodayLabel();
   const todayKey = getSaoPauloDateKey();
   const user = await getActiveUser();
-  const [savedEntry, tonic, diaryTasks] = user ? await Promise.all([
+  const [savedEntry, tonic, diaryTasks, live] = user ? await Promise.all([
     getDiaryEntry(user.id, todayKey).catch(() => null),
     getDailyDiscipleshipTonic(user.id, todayKey).catch(() => null),
     getDiaryBornTasks(user.id).catch(() => []),
-  ]) : [null, null, []];
+    getLiveIdeas(user.id, todayKey).catch(() => ({ ideas: [] })),
+  ]) : [null, null, [], { ideas: [] }];
+  const ideas = live.ideas;
   const questions = [...fixedQuestions, getRotatingQuestion(), tonic
     ? `Sobre a Tônica de hoje — ${tonic.code} · ${tonic.title}`
     : "Sobre a Tônica de hoje"];
+  // The week's Bastião ideas get their own question, kept once answered.
+  if (ideas.length || savedEntry?.answers[4]?.trim()) questions.push("Sobre o Bastião da semana — como vivi as ideias escolhidas hoje?");
 
   return (
     <AppShell>
@@ -48,6 +54,12 @@ export default async function DiarioPage() {
           <Pill tone="accent">{today}</Pill>
         </div>
         {tonic ? <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Quarta reflexão · Tônica do dia</p><p className="mt-1 text-base font-semibold leading-6 text-violet-950">Fase {tonic.phase.sequence} · {tonic.phase.title}</p><p className="mt-1 text-sm leading-6 text-violet-900">{tonic.code} · {tonic.title}</p><p className="mt-2 text-sm leading-5 text-violet-900/75">Objetivo: {tonic.phase.objective}</p></div> : null}
+        {ideas.length ? (
+          <div className="mt-3">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-clay">Quinta reflexão · Para viver nesta semana</p>
+            <LiveIdeasList ideas={ideas} compact />
+          </div>
+        ) : null}
         <DiaryWriter questions={questions} dateKey={todayKey} initialAnswers={savedEntry?.answers} />
       </Card>
 

@@ -1026,7 +1026,7 @@ export async function saveDiaryEntry(userId: string, dateKey: string, answers: s
   const fixedAnswer = answers.slice(0, 2).join("\n\n");
   // `answers` keeps each response intact; fixedAnswer stays filled for exports and older readers.
   const rotatingAnswers = JSON.stringify({
-    answers: answers.slice(0, 4),
+    answers: answers.slice(0, 5),
     thirdAnswer: answers[2] ?? "",
     tonicAnswer: answers[3] ?? "",
     tonic: { id: tonic.id, code: tonic.code, title: tonic.title, phaseTitle: tonic.phase.title, phaseObjective: tonic.phase.objective },
@@ -1056,10 +1056,10 @@ export async function getDiaryEntry(userId: string, dateKey: string) {
   ).bind(userId, dateKey).first<{ id: string; fixedAnswer: string; rotatingAnswers: string }>();
   if (!entry) return null;
   const rotating = parseJson<{ answers?: string[]; thirdAnswer?: string; tonicAnswer?: string }>(entry.rotatingAnswers, {});
-  if (Array.isArray(rotating.answers)) return { id: entry.id, answers: [0, 1, 2, 3].map((index) => rotating.answers?.[index] ?? "") };
+  if (Array.isArray(rotating.answers)) return { id: entry.id, answers: [0, 1, 2, 3, 4].map((index) => rotating.answers?.[index] ?? "") };
   // Older entries joined answers 1 and 2 with a blank line; never drop text when an answer had paragraphs.
   const [first = "", ...rest] = entry.fixedAnswer.split("\n\n");
-  return { id: entry.id, answers: [first, rest.join("\n\n"), rotating.thirdAnswer ?? "", rotating.tonicAnswer ?? ""] };
+  return { id: entry.id, answers: [first, rest.join("\n\n"), rotating.thirdAnswer ?? "", rotating.tonicAnswer ?? "", ""] };
 }
 
 export async function createHabitTemplate({ userId, title, cadence, targetCount, description, practiceGroup = "HABIT", practiceTool = null, schedule = { dayPeriod: null, scheduledTime: null, remind: false } }: {
