@@ -1,6 +1,7 @@
 import { getSaoPauloDateKey } from "@/lib/date";
 import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
 import { getActiveUser, getDiaryEntry, getHabitDashboard, getTodayReflectionTopics } from "@/lib/db/sendero";
+import { practiceHref } from "@/lib/practice";
 import { generateVapidKeys, sendPush, type VapidKeys } from "@/lib/push";
 
 /** Daily phone reminders. Each one is sent only while something of its kind is still pending today. */
@@ -130,6 +131,13 @@ function saoPauloMinutes(now: Date) {
   return value("hour") * 60 + value("minute");
 }
 
+/** Minutes past a HH:MM time, or null when it is not due now (not yet, or too long ago to still help). */
+function minutesLate(time: string, nowMinutes: number) {
+  const [hour, minute] = time.split(":").map(Number);
+  const late = nowMinutes - (hour * 60 + minute);
+  return late < 0 || late > LATE_LIMIT_MIN ? null : late;
+}
+
 /** Runs from the Worker's cron: sends each reminder whose time has come today and is still pending. */
 export async function sendDueReminders(now = new Date()) {
   const user = await getActiveUser();
@@ -137,12 +145,9 @@ export async function sendDueReminders(now = new Date()) {
   const db = getSenderoDb();
   const dateKey = getSaoPauloDateKey(now);
   const minutes = saoPauloMinutes(now);
-  const sent: ReminderKind[] = [];
+  const sent: string[] = [];
   for (const reminder of await listReminders(user.id)) {
-    if (!reminder.enabled || reminder.lastSentDate === dateKey) continue;
-    const [hour, minute] = reminder.time.split(":").map(Number);
-    const late = minutes - (hour * 60 + minute);
-    if (late < 0 || late > LATE_LIMIT_MIN) continue;
+    if (!reminder.enabled || reminder.lastSentDate === dateKey || minutesLate(reminder.time, minutes) === null) continue;
     // Marked first, so an overlapping run never sends twice.
     const claimed = await db.prepare('UPDATE "Reminder" SET lastSentDate = ? WHERE id = ? AND (lastSentDate IS NULL OR lastSentDate <> ?)').bind(dateKey, reminder.id, dateKey).run();
     if (!Number(claimed.meta?.changes ?? 1)) continue;
@@ -150,6 +155,23 @@ export async function sendDueReminders(now = new Date()) {
     if (!body) continue;
     await deliver(user.id, { title: "Sendero", body, url: REMINDER_KINDS[reminder.kind].url, tag: `sendero-${reminder.kind.toLowerCase()}` });
     sent.push(reminder.kind);
+  }
+
+  // Habits with their own hour: a reminder at that time if not done yet today.
+  const timed = (await db.prepare(`
+    SELECT id, scheduledTime FROM "HabitTemplate"
+    WHERE userId = ? AND isActive = 1 AND remind = 1 AND scheduledTime IS NOT NULL AND (lastRemindedDate IS NULL OR lastRemindedDate <> ?)
+  `).bind(user.id, dateKey).all<{ id: string; scheduledTime: string }>()).results.filter((habit) => minutesLate(habit.scheduledTime, minutes) !== null);
+  if (!timed.length) return sent;
+  const habits = new Map((await getHabitDashboard(user.id, dateKey)).habits.map((habit) => [habit.id, habit]));
+  for (const { id } of timed) {
+    const claimed = await db.prepare('UPDATE "HabitTemplate" SET lastRemindedDate = ? WHERE id = ? AND (lastRemindedDate IS NULL OR lastRemindedDate <> ?)').bind(dateKey, id, dateKey).run();
+    const habit = habits.get(id);
+    if (!Number(claimed.meta?.changes ?? 1) || !habit) continue;
+    const done = habit.cadence === "WEEKLY" ? habit.todayCount > 0 || habit.progress >= habit.targetCount : habit.progress >= habit.targetCount;
+    if (done) continue;
+    await deliver(user.id, { title: "Sendero", body: `Hora de: ${habit.title}`, url: practiceHref(habit.id, habit.practiceTool) ?? "/habitos", tag: `sendero-habito-${id}` });
+    sent.push(`HABITO:${id}`);
   }
   return sent;
 }
