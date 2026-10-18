@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BookOpenText, CalendarCheck2, Clock3, HelpCircle, Moon, Settings, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpenText, CalendarCheck2, Clock3, GraduationCap, HelpCircle, Moon, Settings, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 import { calculateMortem } from "@/lib/services/MortemService";
@@ -8,9 +8,9 @@ import type { PercursoData } from "@/lib/db/percurso";
 import type { ReflectionAttendance } from "@/lib/db/sendero";
 import type { DbReflectionTopic, OpenTask, OverdueReflectionTopic } from "@/lib/db/sendero";
 
-type InicioScreenProps = { realUser?: { name: string; birthDate: string; mortemTargetAge: number }; realReflectionTopics?: DbReflectionTopic[]; overdueReflections?: OverdueReflectionTopic[]; openTasks?: OpenTask[]; diaryDone?: boolean; todayKey?: string; percurso?: PercursoData | null; tonicPosition?: { current: number; total: number } | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null; masterQuestions?: number };
+type InicioScreenProps = { realUser?: { name: string; birthDate: string; mortemTargetAge: number }; realReflectionTopics?: DbReflectionTopic[]; overdueReflections?: OverdueReflectionTopic[]; openTasks?: OpenTask[]; diaryDone?: boolean; todayKey?: string; percurso?: PercursoData | null; tonicPosition?: { current: number; total: number } | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null; masterQuestions?: number; school?: { ideas: number; livedToday: number } | null };
 
-export function InicioScreen({ realUser, realReflectionTopics = [], overdueReflections = [], openTasks = [], diaryDone = false, todayKey = new Date().toISOString().slice(0, 10), percurso = null, tonicPosition = null, attendance = null, masterQuestions = 0 }: InicioScreenProps) {
+export function InicioScreen({ realUser, realReflectionTopics = [], overdueReflections = [], openTasks = [], diaryDone = false, todayKey = new Date().toISOString().slice(0, 10), percurso = null, tonicPosition = null, attendance = null, masterQuestions = 0, school = null }: InicioScreenProps) {
   const topics = realReflectionTopics;
   const pending = topics.filter(topic => topic.status !== "feita").length;
   const lateTasks = openTasks.filter(task => task.proximity === "late").length;
@@ -39,7 +39,16 @@ export function InicioScreen({ realUser, realReflectionTopics = [], overdueRefle
 
     {percurso ? <PercursoSections data={percurso} tonicPosition={tonicPosition} attendance={attendance} /> : null}
 
-    <Link prefetch={false} href="/mestre" className="mt-4 flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-950">
+    <Link prefetch={false} href="/escola" className="mt-4 flex items-center gap-3 rounded-2xl border border-clay/25 bg-clay/5 p-4 text-ink">
+      <GraduationCap className="h-6 w-6 shrink-0 text-clay" aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-base font-semibold">Escola</span>
+        <span className="block text-sm text-ink/65">{school?.ideas ? `${school.livedToday} de ${school.ideas} ideia${school.ideas === 1 ? "" : "s"} do Bastião vivida${school.ideas === 1 ? "" : "s"} hoje` : school ? "Aula, Bastiões e vivências" : "Registre a aula e o Bastião"}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+    </Link>
+
+    <Link prefetch={false} href="/mestre" className="mt-3 flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-950">
       <HelpCircle className="h-6 w-6 shrink-0 text-violet-700" aria-hidden="true" />
       <span className="min-w-0 flex-1">
         <span className="block text-base font-semibold">Para falar com meu mestre</span>

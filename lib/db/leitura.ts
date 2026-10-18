@@ -2,7 +2,11 @@ import { getSaoPauloDateKey } from "@/lib/date";
 import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
 import { createMemorizationText } from "@/lib/db/memorizacao";
 import { saveHabitProgress } from "@/lib/db/sendero";
+import { bastiaoLabel } from "@/lib/escola-shared";
 import { addDays, streaks, weekStart } from "@/lib/habit-streak";
+import { READING_KINDS, READING_STATUS, type ReadingKind, type ReadingStatus } from "@/lib/leitura-shared";
+
+export type { ReadingKind, ReadingStatus };
 
 /**
  * Leitura: books, course handouts, loose texts and readings asked in class.
@@ -10,8 +14,6 @@ import { addDays, streaks, weekStart } from "@/lib/habit-streak";
  * Reading time also counts towards the weekly reading habit.
  */
 
-export type ReadingKind = "LIVRO" | "APOSTILA" | "TEXTO" | "AULA";
-export type ReadingStatus = "LENDO" | "QUERO" | "PAUSADO" | "LIDO";
 export type ReadingItem = {
   id: string; kind: ReadingKind; title: string; author: string; totalPages: number | null; currentPage: number;
   status: ReadingStatus; dueDate: string | null; note: string; startedAt: string | null; finishedAt: string | null; updatedAt: string;
@@ -22,10 +24,7 @@ export type ReadingItem = {
 };
 export type ReadingSession = { id: string; itemId: string; date: string; minutes: number; fromPage: number | null; toPage: number | null };
 export type ReadingQuote = { id: string; itemId: string; itemTitle: string; text: string; page: string; note: string; createdAt: string };
-export type BastiaoWeek = { weekStart: string; title: string; read: boolean; notes: string };
 
-export const READING_KINDS: Record<ReadingKind, string> = { LIVRO: "Livro", APOSTILA: "Apostila", TEXTO: "Texto", AULA: "Leitura de aula" };
-export const READING_STATUS: Record<ReadingStatus, string> = { LENDO: "Lendo", QUERO: "Quero ler", PAUSADO: "Pausado", LIDO: "Lido" };
 
 type ItemRow = { id: string; kind: string; title: string; author: string | null; totalPages: number | null; currentPage: number; status: string; dueDate: string | null; note: string | null; startedAt: string | null; finishedAt: string | null; updatedAt: string };
 type SessionRow = { id: string; itemId: string; date: string; minutes: number; fromPage: number | null; toPage: number | null };
@@ -72,13 +71,15 @@ export async function getReadingOverview(userId: string, today = getSaoPauloDate
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   const since = addDays(today, -90);
-  const [items, sessions, quotes, weeks, user] = await Promise.all([
+  const [items, sessions, quotes, bastioes] = await Promise.all([
     db.prepare('SELECT * FROM "ReadingItem" WHERE userId = ? AND archivedAt IS NULL ORDER BY updatedAt DESC').bind(userId).all<ItemRow>(),
     db.prepare('SELECT id, itemId, date, minutes, fromPage, toPage FROM "ReadingSession" WHERE userId = ? AND date >= ? ORDER BY date').bind(userId, since).all<SessionRow>(),
     db.prepare(`SELECT q.id, q.itemId, i.title AS itemTitle, q.text, q.page, q.note, q.createdAt FROM "ReadingQuote" q JOIN "ReadingItem" i ON i.id = q.itemId
       WHERE q.userId = ? AND i.archivedAt IS NULL ORDER BY q.createdAt DESC LIMIT 3`).bind(userId).all<ReadingQuote>(),
-    db.prepare('SELECT weekStart, title, readAt, notes FROM "BastiaoWeek" WHERE userId = ? ORDER BY weekStart DESC LIMIT 60').bind(userId).all<{ weekStart: string; title: string | null; readAt: string | null; notes: string | null }>(),
-    db.prepare('SELECT bastiaoUrl FROM "User" WHERE id = ?').bind(userId).first<{ bastiaoUrl: string | null }>(),
+    // Bastiões of the class in course (they live in Escola).
+    db.prepare(`SELECT b.number, b.name, b.readAt FROM "Bastiao" b WHERE b.userId = ? AND b.classId = (
+      SELECT id FROM "SchoolClass" WHERE userId = ? AND date <= ? ORDER BY date DESC, createdAt DESC LIMIT 1) ORDER BY COALESCE(b.number, 999999)`)
+      .bind(userId, userId, today).all<{ number: number | null; name: string; readAt: string | null }>(),
   ]);
   const all = items.results.map((row) => toItem(row, sessions.results, today));
   // Percent progress (texts without pages) is not pages read.
@@ -97,13 +98,6 @@ export async function getReadingOverview(userId: string, today = getSaoPauloDate
     return { date: day, minutes: daySessions.reduce((sum, session) => sum + Number(session.minutes), 0), pages: daySessions.reduce((sum, session) => sum + pagesOf(session), 0) };
   });
 
-  // Bastião: this week and the run of weeks read (one missed week is forgiven).
-  const byWeek = new Map(weeks.results.map((week) => [week.weekStart, week]));
-  const firstWeek = weeks.results.at(-1)?.weekStart ?? thisWeek;
-  const weekRun: boolean[] = [];
-  for (let week = firstWeek; week <= thisWeek; week = addDays(week, 7)) weekRun.push(Boolean(byWeek.get(week)?.readAt));
-  const current = byWeek.get(thisWeek);
-
   return {
     today,
     items: all,
@@ -115,14 +109,7 @@ export async function getReadingOverview(userId: string, today = getSaoPauloDate
       finishedThisYear: all.filter((item) => item.status === "LIDO" && item.finishedAt?.slice(0, 4) === today.slice(0, 4)).length,
       last7,
     },
-    bastiao: {
-      url: user?.bastiaoUrl ?? "",
-      weekStart: thisWeek,
-      current: { weekStart: thisWeek, title: current?.title ?? "", read: Boolean(current?.readAt), notes: current?.notes ?? "" } as BastiaoWeek,
-      streak: streaks(weekRun).current,
-      past: weeks.results.filter((week) => week.weekStart < thisWeek && (week.readAt || week.notes || week.title))
-        .map((week) => ({ weekStart: week.weekStart, title: week.title ?? "", read: Boolean(week.readAt), notes: week.notes ?? "" })),
-    },
+    bastioes: bastioes.results.map((bastiao) => ({ label: bastiaoLabel(bastiao), read: Boolean(bastiao.readAt) })),
   };
 }
 
@@ -241,27 +228,4 @@ export async function quoteToMemorization(userId: string, id: string) {
     source: [quote.author, quote.title].filter(Boolean).join(", "),
     text: lines,
   });
-}
-
-/** This week's Bastião: title, read or not, and the notes. */
-export async function saveBastiaoWeek(userId: string, input: { weekStart?: unknown; title?: unknown; read?: unknown; notes?: unknown }) {
-  await ensureSenderoSeeded();
-  const week = isDate(input.weekStart) ? weekStart(input.weekStart) : weekStart(getSaoPauloDateKey());
-  const now = new Date().toISOString();
-  await getSenderoDb().prepare(`
-    INSERT INTO "BastiaoWeek" (id, userId, weekStart, title, readAt, notes, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(userId, weekStart) DO UPDATE SET
-      title = CASE WHEN ? THEN excluded.title ELSE "BastiaoWeek".title END,
-      readAt = CASE WHEN ? THEN excluded.readAt ELSE "BastiaoWeek".readAt END,
-      notes = CASE WHEN ? THEN excluded.notes ELSE "BastiaoWeek".notes END,
-      updatedAt = excluded.updatedAt
-  `).bind(`bastiao_${userId}_${week}`, userId, week, text(input.title, 200) || null, input.read ? now : null, text(input.notes, MAX_TEXT) || null, now,
-    input.title !== undefined ? 1 : 0, input.read !== undefined ? 1 : 0, input.notes !== undefined ? 1 : 0).run();
-}
-
-export async function saveBastiaoUrl(userId: string, url: unknown) {
-  await ensureSenderoSeeded();
-  const value = typeof url === "string" ? url.trim() : "";
-  if (value && !/^https?:\/\/\S+$/i.test(value)) throw new Error("Endereço inválido. Ele deve começar com https://");
-  await getSenderoDb().prepare('UPDATE "User" SET bastiaoUrl = ? WHERE id = ?').bind(value || null, userId).run();
 }

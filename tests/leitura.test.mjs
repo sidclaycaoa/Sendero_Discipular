@@ -3,7 +3,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { readdir, readFile } from "node:fs/promises";
 
-// Leitura: books and class readings, reading time, passages and the weekly Bastião.
+// Leitura: books and class readings, reading time and marked passages.
 class D1 {
   constructor() { this.sqlite = new DatabaseSync(":memory:"); }
   prepare(sql) {
@@ -90,21 +90,6 @@ test("a marked passage can become a Memorização text, one sentence per line", 
   const memo = await (await call("/api/leitura/trecho", { id: quote.id, memorizar: true })).json();
   const row = db.sqlite.prepare('SELECT title, source, contentText, totalLines FROM "MemorizationItem" WHERE id = ?').get(memo.id);
   assert.deepEqual({ ...row }, { title: "Manual · p. 1", source: "Epicteto, Manual", contentText: "Algumas coisas dependem de nós.\nOutras não dependem.", totalLines: 2 });
-});
-
-test("the Bastião of the week keeps title, read mark and notes, and its site address", async () => {
-  const { db, call } = await setup();
-  assert.equal((await call.patch("/api/leitura/bastiao", { url: "ftp://x" })).status, 400);
-  assert.equal((await call.patch("/api/leitura/bastiao", { url: "https://bastioes.example/semana" })).status, 200);
-  await call.patch("/api/leitura/bastiao", { title: "Sobre a vontade", read: true });
-  await call.patch("/api/leitura/bastiao", { notes: "A vontade se educa." });
-  const week = db.sqlite.prepare('SELECT title, readAt, notes FROM "BastiaoWeek"').all();
-  assert.equal(week.length, 1);
-  assert.equal(week[0].title, "Sobre a vontade");
-  assert.ok(week[0].readAt, "notes did not undo the read mark");
-  const html = await (await call("/leitura")).text();
-  assert.ok(html.includes('href="https://bastioes.example/semana"'));
-  assert.ok(html.includes("A vontade se educa."));
 });
 
 test("migration 0014 sends the weekly reading habit to the module", async () => {

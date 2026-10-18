@@ -7,11 +7,13 @@ import { Bell, Check, Clock3, Flame, Minus, Pencil, Play, Plus, Settings2, Trash
 import { AppShell } from "@/components/app/AppShell";
 import { Sheet } from "@/components/app/Sheet";
 import { HabitConfigModal } from "@/components/habitos/HabitConfigModal";
+import type { LiveIdea } from "@/lib/db/escola";
 import type { DayPeriod, DbHabit, HabitDashboard } from "@/lib/db/sendero";
+import { LiveIdeasList } from "@/components/escola/shared";
 import { DEFAULT_ML_PER_KG, FLAME_TIERS, flameTier, waterGoal } from "@/lib/habit-streak";
 import { practiceHref } from "@/lib/practice";
 
-type Props = { dashboard: HabitDashboard | null };
+type Props = { dashboard: HabitDashboard | null; ideas?: LiveIdea[] };
 type Group = DbHabit["practiceGroup"];
 type Filter = "TODOS" | Group;
 
@@ -51,7 +53,7 @@ function isLate(habit: DbHabit, now: number | null) {
   return end != null && now >= end;
 }
 
-export function HabitsScreen({ dashboard }: Props) {
+export function HabitsScreen({ dashboard, ideas = [] }: Props) {
   const router = useRouter();
   const [data, setData] = useState(dashboard);
   const [filter, setFilter] = useState<Filter>("TODOS");
@@ -164,6 +166,13 @@ export function HabitsScreen({ dashboard }: Props) {
     </section>
 
     <WaterRow waterMl={data.waterMl} goalMl={data.waterGoalMl} onAdd={addWater} onMore={() => setWaterOpen(true)} onSettings={() => setWaterSettingsOpen(true)} />
+
+    {ideas.length ? (
+      <section className="mt-4">
+        <div className="flex items-baseline justify-between px-1"><h2 className="text-xs font-bold uppercase tracking-wider text-clay">Para viver · Bastião</h2><Link prefetch={false} href="/escola" className="text-[11px] font-semibold text-ink/50">Escola ›</Link></div>
+        <div className="mt-1.5"><LiveIdeasList ideas={ideas} compact /></div>
+      </section>
+    ) : null}
 
     <div role="tablist" aria-label="Filtrar" className="mt-4 grid grid-cols-4 gap-1.5">
       {FILTERS.map((item) => <button key={item.key} type="button" role="tab" aria-selected={filter === item.key} onClick={() => setFilter(item.key)} className={`flex min-h-9 items-center justify-center gap-1 rounded-full border px-1 text-xs font-semibold ${filter === item.key ? "border-ink bg-ink text-paper" : "border-line bg-white text-ink/70"}`}>{item.key !== "TODOS" ? <i className={`h-1.5 w-1.5 shrink-0 rounded-full ${GROUPS[item.key].dot}`} /> : null}{item.label}</button>)}
