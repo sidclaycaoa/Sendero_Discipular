@@ -2,6 +2,7 @@ import { InicioScreen } from "@/components/inicio/InicioScreen";
 import { getActiveUser, getDailyDiscipleshipTonic, getDiaryEntry, getDiscipleshipCatalog, getOpenTasks, getReflectionAttendance, getReflectionPageData } from "@/lib/db/sendero";
 import type { ReflectionAttendance } from "@/lib/db/sendero";
 import { getPercursoData } from "@/lib/db/percurso";
+import { countOpenMasterQuestions } from "@/lib/db/pendencias";
 import type { PercursoData } from "@/lib/db/percurso";
 import type { DbReflectionTopic, OpenTask, OverdueReflectionTopic } from "@/lib/db/sendero";
 import { getSaoPauloDateKey } from "@/lib/date";
@@ -25,10 +26,11 @@ export default async function InicioPage() {
   let percurso: PercursoData | null = null;
   let tonicPosition: { current: number; total: number } | null = null;
   let attendance: { current: ReflectionAttendance; previous: ReflectionAttendance } | null = null;
+  let masterQuestions = 0;
   const todayKey = getSaoPauloDateKey();
 
   try {
-    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, tonic, catalog, loadedAttendance] = await Promise.all([
+    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, tonic, catalog, loadedAttendance, openMasterQuestions] = await Promise.all([
       getReflectionPageData(user.id, user.cycleAnchorDate, undefined, undefined, 60),
       getOpenTasks(user.id),
       getDiaryEntry(user.id, todayKey),
@@ -36,7 +38,9 @@ export default async function InicioPage() {
       getDailyDiscipleshipTonic(user.id, todayKey).catch(() => null),
       getDiscipleshipCatalog(user.id).catch(() => []),
       getReflectionAttendance(user.id, todayKey).catch(() => null),
+      countOpenMasterQuestions(user.id).catch(() => 0),
     ]);
+    masterQuestions = openMasterQuestions;
     attendance = loadedAttendance;
 
     topics = reflectionData.topics;
@@ -66,6 +70,7 @@ export default async function InicioPage() {
       percurso={percurso}
       tonicPosition={tonicPosition}
       attendance={attendance}
+      masterQuestions={masterQuestions}
     />
   );
 }

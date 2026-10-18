@@ -722,7 +722,7 @@ export async function getTaskBoard(userId: string, includeCompleted = false): Pr
   }));
 }
 
-export async function createManualTask({ userId, title, dueDate, priority, description, recurrence }: { userId: string; title: string; dueDate: string; priority?: number; description?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] } }) {
+export async function createManualTask({ userId, title, dueDate, priority, description, recurrence, origin = "MANUAL" }: { userId: string; title: string; dueDate: string; priority?: number; description?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] }; origin?: "MANUAL" | "DIARY" }) {
   await ensureSenderoSeeded();
   const categoryId = await ensureCategory(userId);
   const now = new Date().toISOString();
@@ -732,12 +732,12 @@ export async function createManualTask({ userId, title, dueDate, priority, descr
   if (seriesId) await db.prepare('INSERT INTO "TaskSeries" (id, userId, title, recurrence, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)').bind(seriesId, userId, title.trim(), JSON.stringify(recurrence), now, now).run();
   await db.prepare(`
     INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, 'MANUAL', NULL, ?, ?)
-  `).bind(id, userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, now, now).run();
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, ?, NULL, ?, ?)
+  `).bind(id, userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, origin, now, now).run();
   if (seriesId) {
     const dates = recurrenceDates(dueDate, recurrence!);
-    await db.batch(dates.slice(1).map((date) => db.prepare(`INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, 'MANUAL', NULL, ?, ?)`)
-      .bind(newId("task"), userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(date), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, now, now)));
+    await db.batch(dates.slice(1).map((date) => db.prepare(`INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, ?, NULL, ?, ?)`)
+      .bind(newId("task"), userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(date), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, origin, now, now)));
   }
   return { id };
 }
@@ -757,6 +757,17 @@ export async function updateTaskState({ userId, taskId, completed, title, dueDat
 export async function deleteTask(userId: string, taskId: string) {
   await ensureSenderoSeeded();
   await getSenderoDb().prepare('DELETE FROM "TaskOccurrence" WHERE id = ? AND userId = ?').bind(taskId, userId).run();
+}
+
+/** Open tasks that were created from the Diary. */
+export async function getDiaryBornTasks(userId: string) {
+  await ensureSenderoSeeded();
+  const result = await getSenderoDb().prepare(`
+    SELECT id, title, dueDate FROM "TaskOccurrence"
+    WHERE userId = ? AND originType = 'DIARY' AND completedAt IS NULL AND status != 'CANCELED'
+    ORDER BY dueDate ASC LIMIT 20
+  `).bind(userId).all<{ id: string; title: string; dueDate: string }>();
+  return result.results;
 }
 
 export async function getCalendarEvents(userId: string): Promise<CalendarEvent[]> {

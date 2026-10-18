@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock3, ListPlus, Save } from "lucide-react";
 import { Card, Pill } from "@/components/app/AppShell";
 import { PostponeButton } from "@/components/refletir/PostponeButton";
+import { MasterQuestionButton } from "@/components/mestre/MasterQuestionButton";
 
 type ReflectionWriterProps = {
   reflection: {
@@ -194,6 +195,11 @@ export function ReflectionWriter({
           <ListPlus className="h-4 w-4" />
           {creatingTask ? "Criando tarefa..." : taskCreated ? "Tarefa criada" : "Criar tarefa a partir desta reflexão"}
         </button>
+
+        <MasterQuestionButton
+          context={{ sourceType: "REFLEXAO", sourceId: reflection.templateId, sourceDate: dateKey, contextTitle: reflection.topic, contextDetail: [subtopic, orientation].filter(Boolean).join(" — ") }}
+          getText={() => text}
+        />
       </Card>
 
       {completion ? <ReflectionCompletionDialog next={completion.next} onBack={() => router.push(backHref)} onNext={(href) => { setCompletion(null); window.scrollTo({ top: 0, left: 0, behavior: "auto" }); router.push(href); }} /> : null}
