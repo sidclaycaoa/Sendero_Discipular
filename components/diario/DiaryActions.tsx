@@ -66,7 +66,7 @@ export function DiaryActions({ tasks, defaultDate }: { tasks: DiaryTask[]; defau
           {tasks.map((task) => <li key={task.id} className="flex items-center justify-between gap-3 py-2"><span className="text-ink">{task.title}</span><span className="shrink-0 text-xs text-ink/60">{formatDate(task.dueDate)}</span></li>)}
         </ul>
       ) : null}
-      {tasks.length ? <Link prefetch={false} href="/tarefas" className="mt-2 inline-block text-sm font-semibold text-moss">Ver em Tarefas</Link> : null}
+      {tasks.length ? <Link prefetch={false} href="/tarefas" className="mt-2 inline-block text-sm font-semibold text-moss">Ver na Agenda</Link> : null}
     </Card>
   );
 }

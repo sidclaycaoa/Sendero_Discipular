@@ -13,7 +13,7 @@ const navItems = [
   { href: "/inicio", label: "Início", icon: Home },
   { href: "/refletir", label: "Refletir", icon: BookOpenText },
   { href: "/habitos", label: "Hábitos", icon: CheckSquare2 },
-  { href: "/tarefas", label: "Tarefas", icon: CalendarCheck2 },
+  { href: "/tarefas", label: "Agenda", icon: CalendarCheck2 },
   { href: "/diario", label: "Diário", icon: NotebookPen }
 ];
 
