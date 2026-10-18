@@ -1,6 +1,6 @@
 # Sendero Discipular
 
-App pessoal de um único usuário (Sidclay), usado principalmente pelo celular. Antes de mudar produto ou dados, leia `docs/dossie-sendero.md`: propósito, módulos, persona AD, decisões de design e frustrações históricas.
+App pessoal de um único usuário (Sidclay), usado principalmente pelo celular. Antes de mudar produto ou dados, leia `docs/dossie-sendero.md` (propósito, persona AD, decisões de design, frustrações históricas) e `docs/estado-atual.md` (o que já existe, como se entrega e a fila de próximos passos).
 
 - Stack: vinext (Next.js em Vite) num Cloudflare Worker + banco D1 (`sendero-discipular`). Entrada do Worker: `worker/index.ts`.
 - Acesso: todo o Worker fica atrás do login por senha de `worker/auth.ts` (secret `SENDERO_SENHA`). Não abrir rotas sem passar pelo gate.

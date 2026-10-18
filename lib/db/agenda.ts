@@ -10,7 +10,7 @@ import { addDays, weekStart } from "@/lib/habit-streak";
 
 export type AgendaTask = { id: string; title: string; description: string; date: string; time: string | null; priority: 1 | 2 | 3; done: boolean; recurring: boolean; origin: "MANUAL" | "REFLECTION" | "DIARY" };
 export type AgendaEvent = { id: string; title: string; date: string; time: string; endTime: string; location: string; description: string };
-export type AgendaHabit = { id: string; title: string; time: string };
+export type AgendaHabit = { id: string; title: string; time: string; target: number };
 export type AgendaDay = { date: string; tasks: AgendaTask[]; events: AgendaEvent[] };
 
 type TaskRow = { id: string; title: string; description: string | null; dueDate: string; dueTime: string | null; priority: number; completedAt: string | null; seriesId: string | null; originType: string };
@@ -34,7 +34,7 @@ async function loadSpan(userId: string, from: string, to: string) {
   const [tasks, events, habits] = await Promise.all([
     db.prepare(`SELECT ${TASK_COLUMNS} FROM "TaskOccurrence" WHERE userId = ? AND status != 'CANCELED' AND dueDate >= ? AND dueDate <= ?`).bind(userId, from, to).all<TaskRow>(),
     db.prepare('SELECT id, title, startsAt, endsAt, location, description FROM "Event" WHERE userId = ? AND substr(startsAt, 1, 10) >= ? AND substr(startsAt, 1, 10) <= ? ORDER BY startsAt').bind(userId, from, to).all<EventRow>(),
-    db.prepare('SELECT id, title, scheduledTime AS time FROM "HabitTemplate" WHERE userId = ? AND isActive = 1 AND cadence = \'DAILY\' AND scheduledTime IS NOT NULL ORDER BY scheduledTime').bind(userId).all<AgendaHabit>(),
+    db.prepare('SELECT id, title, scheduledTime AS time, targetCount AS target FROM "HabitTemplate" WHERE userId = ? AND isActive = 1 AND cadence = \'DAILY\' AND scheduledTime IS NOT NULL ORDER BY scheduledTime').bind(userId).all<AgendaHabit>(),
   ]);
   return { tasks: tasks.results.map(toTask), events: events.results.map(toEvent), habits: habits.results };
 }
@@ -44,12 +44,14 @@ export async function getAgendaDay(userId: string, date: string, today = getSaoP
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   const start = weekStart(date);
-  const [span, late] = await Promise.all([
+  const [span, late, habitLogs] = await Promise.all([
     loadSpan(userId, start, addDays(start, 6)),
     date === today
       ? db.prepare(`SELECT ${TASK_COLUMNS} FROM "TaskOccurrence" WHERE userId = ? AND status != 'CANCELED' AND completedAt IS NULL AND dueDate < ? ORDER BY dueDate`).bind(userId, today).all<TaskRow>()
       : Promise.resolve({ results: [] as TaskRow[] }),
+    db.prepare('SELECT habitId, SUM(count) AS count FROM "HabitLog" WHERE userId = ? AND date = ? GROUP BY habitId').bind(userId, date).all<{ habitId: string; count: number }>(),
   ]);
+  const doneCount = new Map(habitLogs.results.map((row) => [row.habitId, Number(row.count)]));
   // A late repeating task only shows its latest occurrence.
   const lateBySeries = new Map<string, AgendaTask>();
   const lateTasks: AgendaTask[] = [];
@@ -66,7 +68,8 @@ export async function getAgendaDay(userId: string, date: string, today = getSaoP
     late: [...lateTasks, ...lateBySeries.values()].sort((a, b) => a.date.localeCompare(b.date)),
     tasks: span.tasks.filter((task) => task.date === date).sort(byTime),
     events: span.events.filter((event) => event.date === date),
-    habits: span.habits,
+    // Done or not on that day; null for days still ahead.
+    habits: span.habits.map((habit) => ({ ...habit, done: date > today ? null : (doneCount.get(habit.id) ?? 0) >= Math.max(1, Number(habit.target) || 1) })),
   };
 }
 
