@@ -1,5 +1,6 @@
 import { calculateCycleDay, getSaoPauloDateKey, getSaoPauloDayOfMonth, isSameWeek } from "@/lib/date";
 import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
+import { practiceToolKey, type PracticeToolKey } from "@/lib/practice";
 
 const ACTIVE_USER_EMAIL = "sidclay@example.com";
 
@@ -126,6 +127,7 @@ export type DbHabit = {
   todayCount: number;
   note: string;
   practiceGroup: "ED" | "PSYCHOLOGY" | "HABIT";
+  practiceTool: PracticeToolKey | null;
 };
 
 export type HabitDashboard = {
@@ -1034,8 +1036,8 @@ export async function getDiaryEntry(userId: string, dateKey: string) {
   return { id: entry.id, answers: [first, rest.join("\n\n"), rotating.thirdAnswer ?? "", rotating.tonicAnswer ?? ""] };
 }
 
-export async function createHabitTemplate({ userId, title, cadence, targetCount, description, practiceGroup = "HABIT" }: {
-  userId: string; title: string; cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "TIME_BASED"; targetCount: number; description?: string; practiceGroup?: PracticeGroupCode;
+export async function createHabitTemplate({ userId, title, cadence, targetCount, description, practiceGroup = "HABIT", practiceTool = null }: {
+  userId: string; title: string; cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "TIME_BASED"; targetCount: number; description?: string; practiceGroup?: PracticeGroupCode; practiceTool?: PracticeToolKey | null;
 }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
@@ -1044,9 +1046,9 @@ export async function createHabitTemplate({ userId, title, cadence, targetCount,
   const id = newId("habit");
   const now = new Date().toISOString();
   await db.prepare(`
-    INSERT INTO "HabitTemplate" (id, userId, title, description, categoryId, cadence, targetCount, targetValue, isActive, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)
-  `).bind(id, userId, title, description || null, categoryId, cadence, targetCount, now, now).run();
+    INSERT INTO "HabitTemplate" (id, userId, title, description, categoryId, cadence, targetCount, targetValue, isActive, practiceTool, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?)
+  `).bind(id, userId, title, description || null, categoryId, cadence, targetCount, practiceTool, now, now).run();
   await db.prepare('INSERT INTO "HabitPracticeGroup" (habitId, groupId, createdAt, updatedAt) VALUES (?, ?, ?, ?)')
     .bind(id, practiceGroupId(userId, practiceGroup), now, now).run();
   return { id };
@@ -1067,7 +1069,7 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
       LEFT JOIN "PracticeGroup" pg ON pg.id = hpg.groupId
       WHERE ht.userId = ? AND ht.isActive = 1
       ORDER BY pg.sequence ASC, CASE ht.cadence WHEN 'DAILY' THEN 1 WHEN 'WEEKLY' THEN 2 ELSE 3 END, ht.createdAt ASC
-    `).bind(userId).all<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; categoryName: string; practiceGroup: PracticeGroupCode | null }>(),
+    `).bind(userId).all<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; categoryName: string; practiceGroup: PracticeGroupCode | null; practiceTool: string | null }>(),
     db.prepare('SELECT habitId, date, count, minutes, note FROM "HabitLog" WHERE userId = ? AND date <= ?')
       .bind(userId, dateKey).all<{ habitId: string; date: string; count: number; minutes: number | null; note: string | null }>(),
     db.prepare('SELECT COALESCE(SUM(amountMl), 0) AS total FROM "WaterLog" WHERE userId = ? AND date = ?')
@@ -1095,6 +1097,7 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
       todayCount: Number(todayLog?.count ?? 0),
       note: todayLog?.note ?? "",
       practiceGroup: template.practiceGroup ?? "HABIT",
+      practiceTool: practiceToolKey(template.practiceTool),
     };
   });
 
@@ -1136,20 +1139,37 @@ export async function addWaterLog(userId: string, dateKey: string, amountMl: num
     .bind(newId("water"), userId, dateKey, amount, new Date().toISOString()).run();
 }
 
-export async function updateHabitTemplate({ userId, habitId, title, description, cadence, targetCount, practiceGroup }: {
-  userId: string; habitId: string; title: string; description?: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; practiceGroup?: PracticeGroupCode;
+export async function updateHabitTemplate({ userId, habitId, title, description, cadence, targetCount, practiceGroup, practiceTool = null }: {
+  userId: string; habitId: string; title: string; description?: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; practiceGroup?: PracticeGroupCode; practiceTool?: PracticeToolKey | null;
 }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   await ensurePracticeGroups(userId);
   await db.prepare(`
-    UPDATE "HabitTemplate" SET title = ?, description = ?, cadence = ?, targetCount = ?, updatedAt = ?
+    UPDATE "HabitTemplate" SET title = ?, description = ?, cadence = ?, targetCount = ?, practiceTool = ?, updatedAt = ?
     WHERE id = ? AND userId = ? AND isActive = 1
-  `).bind(title.trim(), description?.trim() || null, cadence, Math.max(1, Math.round(targetCount)), new Date().toISOString(), habitId, userId).run();
+  `).bind(title.trim(), description?.trim() || null, cadence, Math.max(1, Math.round(targetCount)), practiceTool, new Date().toISOString(), habitId, userId).run();
   if (practiceGroup) await db.prepare(`
     INSERT INTO "HabitPracticeGroup" (habitId, groupId, createdAt, updatedAt) VALUES (?, ?, ?, ?)
     ON CONFLICT(habitId) DO UPDATE SET groupId = excluded.groupId, updatedAt = excluded.updatedAt
   `).bind(habitId, practiceGroupId(userId, practiceGroup), new Date().toISOString(), new Date().toISOString()).run();
+}
+
+/** One active habit with today's progress, for the guided practice screen. */
+export async function getPracticeHabit(userId: string, habitId: string, dateKey = getSaoPauloDateKey()) {
+  await ensureSenderoSeeded();
+  const db = getSenderoDb();
+  const [habit, log] = await Promise.all([
+    db.prepare('SELECT id, title, description, cadence, targetCount, practiceTool FROM "HabitTemplate" WHERE id = ? AND userId = ? AND isActive = 1')
+      .bind(habitId, userId).first<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; practiceTool: string | null }>(),
+    db.prepare('SELECT count, note FROM "HabitLog" WHERE userId = ? AND habitId = ? AND date = ?').bind(userId, habitId, dateKey).first<{ count: number; note: string | null }>(),
+  ]);
+  if (!habit) return null;
+  return {
+    id: habit.id, title: habit.title, description: habit.description ?? "", cadence: normalizeHabitCadence(habit.cadence),
+    targetCount: Math.max(1, Number(habit.targetCount) || 1), practiceTool: practiceToolKey(habit.practiceTool),
+    todayCount: Number(log?.count ?? 0), note: log?.note ?? "", dateKey,
+  };
 }
 
 export async function archiveHabitTemplate(userId: string, habitId: string) {
