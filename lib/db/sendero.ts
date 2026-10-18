@@ -1187,20 +1187,20 @@ async function seedDefaultHabitTemplates(userId: string) {
   const categoryId = await ensureCategory(userId);
   const now = new Date().toISOString();
   const defaults = [
-    ["hab_varrer", "Varrer por dentro", "Observar nós internos, impulsos e reações antes de agir.", "DAILY", 1],
-    ["hab_ordenar", "Ordenar o ambiente", "Organizar pequenos pontos de desordem com atenção.", "DAILY", 1],
-    ["hab_desejo", "Superar o desejo", "Perceber o impulso e escolher com consciência.", "DAILY", 1],
-    ["hab_diario", "Escrever o Diário", "Registrar o dia com sinceridade e direção prática.", "DAILY", 1],
-    ["hab_disc3x", "Eu Sou Discípulo", "Recordar conscientemente a direção interior ao longo do dia.", "DAILY", 3],
-    ["week_templo", "Templo Interior", "Reservar um momento de aprofundamento interior.", "WEEKLY", 2],
-    ["week_servico", "Serviço silencioso", "Oferecer algo útil sem buscar reconhecimento.", "WEEKLY", 3],
-    ["time_reading", "Leitura e estudo", "Estudo atento ao longo da semana.", "TIME_BASED", 240],
-    ["ed_memorizacao", "Memorização", "Exercício de memorização da Escola do Discipulado.", "DAILY", 1],
+    ["hab_varrer", "Varrer por dentro", "Observar nós internos, impulsos e reações antes de agir.", "DAILY", 1, null],
+    ["hab_ordenar", "Ordenar o ambiente", "Organizar pequenos pontos de desordem com atenção.", "DAILY", 1, null],
+    ["hab_desejo", "Superar o desejo", "Perceber o impulso e escolher com consciência.", "DAILY", 1, null],
+    ["hab_diario", "Escrever o Diário", "Registrar o dia com sinceridade e direção prática.", "DAILY", 1, null],
+    ["hab_disc3x", "Eu Sou Discípulo", "Recordar conscientemente a direção interior ao longo do dia.", "DAILY", 3, null],
+    ["week_templo", "Templo Interior", "Reservar um momento de aprofundamento interior.", "WEEKLY", 2, null],
+    ["week_servico", "Serviço silencioso", "Oferecer algo útil sem buscar reconhecimento.", "WEEKLY", 3, null],
+    ["time_reading", "Leitura e estudo", "Estudo atento ao longo da semana.", "TIME_BASED", 240, null],
+    ["ed_memorizacao", "Memorização", "Exercício de memorização da Escola do Discipulado.", "DAILY", 1, "MEMORIZAR"],
   ] as const;
-  await db.batch(defaults.map(([id, title, description, cadence, targetCount]) => db.prepare(`
-    INSERT OR IGNORE INTO "HabitTemplate" (id, userId, title, description, categoryId, cadence, targetCount, targetValue, isActive, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)
-  `).bind(id, userId, title, description, categoryId, cadence, targetCount, now, now)));
+  await db.batch(defaults.map(([id, title, description, cadence, targetCount, practiceTool]) => db.prepare(`
+    INSERT OR IGNORE INTO "HabitTemplate" (id, userId, title, description, categoryId, cadence, targetCount, targetValue, practiceTool, isActive, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, ?, ?)
+  `).bind(id, userId, title, description, categoryId, cadence, targetCount, practiceTool, now, now)));
 }
 
 function practiceGroupId(userId: string, code: PracticeGroupCode) {

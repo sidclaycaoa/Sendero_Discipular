@@ -7,6 +7,7 @@ import { Check, Clock3, Droplets, Minus, Pencil, Play, Plus, Sparkles, Trash2 } 
 import { AppShell, Card, ModuleHeader } from "@/components/app/AppShell";
 import { HabitConfigModal } from "@/components/habitos/HabitConfigModal";
 import type { DbHabit, HabitDashboard } from "@/lib/db/sendero";
+import { practiceHref } from "@/lib/practice";
 
 type Props = { dashboard: HabitDashboard | null };
 
@@ -154,8 +155,9 @@ function TimedHabitCard({ habit, saving, onChange, onEdit, onDelete }: { habit: 
 }
 
 function PracticeLink({ habit }: { habit: DbHabit }) {
-  if (!habit.practiceTool) return null;
-  return <Link prefetch={false} href={`/praticar/${habit.id}`} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-semibold text-moss"><Play className="h-3.5 w-3.5" aria-hidden="true" /> Praticar</Link>;
+  const href = practiceHref(habit.id, habit.practiceTool);
+  if (!href) return null;
+  return <Link prefetch={false} href={href} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-semibold text-moss"><Play className="h-3.5 w-3.5" aria-hidden="true" /> Praticar</Link>;
 }
 function Actions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) { return <div className="flex gap-1"><button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-paper" onClick={onEdit} aria-label="Editar hábito"><Pencil className="h-4 w-4" /></button><button type="button" className="rounded-lg p-2 text-rose-600 hover:bg-rose-50" onClick={onDelete} aria-label="Excluir hábito"><Trash2 className="h-4 w-4" /></button></div>; }
 function Progress({ value, target }: { value: number; target: number }) { return <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-paper"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${Math.min(100, Math.round((value / target) * 100))}%` }} /></div>; }

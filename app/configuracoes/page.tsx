@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
 import { Database, Download, KeyRound, LogOut, Settings, Shield, SlidersHorizontal } from "lucide-react";
 import { AppShell, Card, ModuleHeader, Pill } from "@/components/app/AppShell";
+import { RemindersPanel } from "@/components/configuracoes/RemindersPanel";
+import { listReminders, REMINDER_KINDS } from "@/lib/db/lembretes";
 import { getActiveUser, getHabitDashboard, getReflectionStats } from "@/lib/db/sendero";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracoesPage() {
   const user = await getActiveUser();
-  const [stats, habits] = user ? await Promise.all([getReflectionStats(user.id), getHabitDashboard(user.id)]) : [{ totalReflections: 0, topics: 0 }, null];
+  const [stats, habits, reminders] = user
+    ? await Promise.all([getReflectionStats(user.id), getHabitDashboard(user.id), listReminders(user.id)])
+    : [{ totalReflections: 0, topics: 0 }, null, []];
   return (
     <AppShell>
       <ModuleHeader
@@ -16,6 +20,8 @@ export default async function ConfiguracoesPage() {
         description="Perfil, categorias, reflexões atuais, exportação, privacidade e preparação para IA."
         action={<Settings className="h-6 w-6 text-olive" />}
       />
+
+      <RemindersPanel reminders={reminders} kinds={REMINDER_KINDS} />
 
       <section className="mt-4 space-y-3">
         <ConfigItem icon={<KeyRound className="h-5 w-5" />} title="Perfil atual" detail={user ? `${user.name} · uso pessoal protegido.` : "Perfil indisponível."} />

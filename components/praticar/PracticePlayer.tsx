@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowLeft, Music2, Play, Square } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
-import { asanaOfDay, type PracticeTool } from "@/lib/practice";
+import { asanaOfDay, type PlayableTool } from "@/lib/practice";
 
 type PracticeHabit = { id: string; title: string; description: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; todayCount: number; note: string; dateKey: string };
 type Phase = "ready" | "running" | "done";
@@ -21,7 +21,7 @@ function browserHidesBar() {
  * circle in full screen, or the exercise's music) and ends with an optional note
  * that also marks the practice as done for today.
  */
-export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: PracticeTool }) {
+export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: PlayableTool }) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [elapsed, setElapsed] = useState(0);
   const startedAt = useRef(0);

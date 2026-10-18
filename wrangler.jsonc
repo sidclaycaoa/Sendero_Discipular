@@ -9,6 +9,8 @@
   "placement": { "region": "gcp:us-east1" },
   "assets": { "binding": "ASSETS", "not_found_handling": "none", "run_worker_first": true },
   "images": { "binding": "IMAGES" },
+  // Phone reminders are checked every 15 minutes (free plan).
+  "triggers": { "crons": ["*/15 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",
