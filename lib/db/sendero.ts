@@ -1281,7 +1281,7 @@ async function seedDefaultHabitTemplates(userId: string) {
     ["hab_disc3x", "Eu Sou Discípulo", "Recordar conscientemente a direção interior ao longo do dia.", "DAILY", 3, null],
     ["week_templo", "Templo Interior", "Reservar um momento de aprofundamento interior.", "WEEKLY", 2, null],
     ["week_servico", "Serviço silencioso", "Oferecer algo útil sem buscar reconhecimento.", "WEEKLY", 3, null],
-    ["time_reading", "Leitura e estudo", "Estudo atento ao longo da semana.", "TIME_BASED", 240, null],
+    ["time_reading", "Leitura e estudo", "Estudo atento ao longo da semana.", "TIME_BASED", 240, "LEITURA"],
     ["ed_memorizacao", "Memorização", "Exercício de memorização da Escola do Discipulado.", "DAILY", 1, "MEMORIZAR"],
   ] as const;
   await db.batch(defaults.map(([id, title, description, cadence, targetCount, practiceTool]) => db.prepare(`

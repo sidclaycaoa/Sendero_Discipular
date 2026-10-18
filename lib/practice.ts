@@ -1,6 +1,6 @@
 /** Guided practice tools that a habit can open from Hábitos (stored in HabitTemplate.practiceTool). */
 
-export type PracticeToolKey = "TRATAK" | "INTERVALOS" | "TEMPLO" | "CAMARA" | "ASANA" | "MEMORIZAR";
+export type PracticeToolKey = "TRATAK" | "INTERVALOS" | "TEMPLO" | "CAMARA" | "ASANA" | "MEMORIZAR" | "LEITURA";
 export type AsanaPose = { name: string; src: string };
 
 export type PracticeTool =
@@ -8,7 +8,7 @@ export type PracticeTool =
   | { key: "INTERVALOS"; label: string; kind: "intervals"; durationSec: number; everySec: number; hint: string }
   | { key: "TEMPLO" | "CAMARA"; label: string; kind: "music"; audioSrc: string; trackName: string; spotifyUrl: string; hint: string }
   | { key: "ASANA"; label: string; kind: "asana"; durationSec: number; poses: AsanaPose[]; cycleStart: string; hint: string }
-  | { key: "MEMORIZAR"; label: string; kind: "link"; href: string; hint: string };
+  | { key: "MEMORIZAR" | "LEITURA"; label: string; kind: "link"; href: string; hint: string };
 
 /** Tools played on the /praticar screen (the others open their own module). */
 export type PlayableTool = Exclude<PracticeTool, { kind: "link" }>;
@@ -50,6 +50,10 @@ export const PRACTICE_TOOLS: Record<PracticeToolKey, PracticeTool> = {
   MEMORIZAR: {
     key: "MEMORIZAR", label: "Memorização · textos por linhas", kind: "link", href: "/memorizar",
     hint: "Abre os textos que você está decorando, linha a linha.",
+  },
+  LEITURA: {
+    key: "LEITURA", label: "Leitura · livros, apostilas e Bastião", kind: "link", href: "/leitura",
+    hint: "Abre a Leitura; o tempo do cronômetro soma nesta meta.",
   },
 };
 
