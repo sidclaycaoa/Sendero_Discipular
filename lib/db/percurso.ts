@@ -16,7 +16,6 @@ export type PercursoData = {
   compare: { day: number; currentMonth: string; previousMonth: string; rows: Array<{ label: string; now: number; before: number; unit?: "ml" }> };
   monthly: Array<{ month: string; label: string; count: number; partial: boolean }>;
   coherence: { reflectionTasks: number; reflectionTasksDone: number; adThisMonth: number };
-  milestones: Array<{ label: string; current: number; target: number }>;
   memory: { date: string; topic: string; excerpt: string } | null;
 };
 
@@ -52,12 +51,7 @@ export async function getPercursoData(userId: string, todayKey: string): Promise
     db.prepare('SELECT substr(date, 1, 10) AS date FROM "DiaryEntry" WHERE userId = ? AND date >= ?').bind(userId, historyStart).all<{ date: string }>(),
     db.prepare('SELECT substr(date, 1, 10) AS date FROM "WaterLog" WHERE userId = ? AND date >= ? GROUP BY 1').bind(userId, heatmapStart).all<{ date: string }>(),
     db.prepare('SELECT substr(date, 1, 7) AS month, COUNT(*) AS n FROM "ReflectionEntry" WHERE userId = ? AND date >= ? GROUP BY 1').bind(userId, monthlyStart).all<{ month: string; n: number }>(),
-    db.prepare(`
-      SELECT
-        (SELECT COUNT(*) FROM "ReflectionEntry" WHERE userId = ?1) AS reflections,
-        (SELECT COUNT(*) FROM "DiaryEntry" WHERE userId = ?1) AS diaries,
-        (SELECT COUNT(*) FROM "ADReflection" WHERE userId = ?1 AND substr(date, 1, 7) = ?2) AS adThisMonth
-    `).bind(userId, todayKey.slice(0, 7)).first<{ reflections: number; diaries: number; adThisMonth: number }>(),
+    db.prepare('SELECT COUNT(*) AS adThisMonth FROM "ADReflection" WHERE userId = ? AND substr(date, 1, 7) = ?').bind(userId, todayKey.slice(0, 7)).first<{ adThisMonth: number }>(),
     db.prepare(`
       SELECT
         (SELECT COUNT(*) FROM "ReflectionEntry" WHERE userId = ?1 AND date >= ?2 AND substr(date, 1, 10) <= ?3) AS reflectionsNow,
@@ -112,10 +106,6 @@ export async function getPercursoData(userId: string, todayKey: string): Promise
       return { month, label: monthLabel(month), count: Number(monthly.results.find((row) => row.month === month)?.n ?? 0), partial: index === 6 };
     }),
     coherence: { reflectionTasks: Number(tasks?.total ?? 0), reflectionTasksDone: Number(tasks?.done ?? 0), adThisMonth: Number(totals?.adThisMonth ?? 0) },
-    milestones: [
-      nextMilestone("reflexões", Number(totals?.reflections ?? 0), 50),
-      nextMilestone("diários", Number(totals?.diaries ?? 0), 25),
-    ],
     memory: memory ? { date: memory.date, topic: memory.topic, excerpt: excerpt(memory.contentText) } : null,
   };
 }
@@ -224,11 +214,6 @@ export function buildHeatmap(activity: Map<string, number>, startKey: string, to
   let presentDays30 = 0;
   for (let date = addDays(todayKey, -29); date <= todayKey; date = addDays(date, 1)) if ((activity.get(date) ?? 0) > 0) presentDays30 += 1;
   return { weeks, monthLabels, presentDays30 };
-}
-
-function nextMilestone(label: string, current: number, step: number) {
-  const target = (Math.floor(current / step) + 1) * step;
-  return { label: `${target} ${label}`, current, target };
 }
 
 function excerpt(text: string) {

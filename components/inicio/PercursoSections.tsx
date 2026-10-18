@@ -50,11 +50,7 @@ function Ring({ label, value, ratio, color, track }: { id: string; label: string
   );
 }
 
-export function PercursoSections({ data, tonicPosition, attendance }: { data: PercursoData; tonicPosition: { current: number; total: number } | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null }) {
-  const milestones = [
-    ...(tonicPosition ? [{ label: "Ciclo das tônicas", current: tonicPosition.current, target: tonicPosition.total, note: tonicPosition.current === tonicPosition.total ? "fecha hoje" : `${tonicPosition.current} de ${tonicPosition.total}` }] : []),
-    ...data.milestones.map((item) => ({ ...item, note: `${item.current} · faltam ${item.target - item.current}` })),
-  ];
+export function PercursoSections({ data }: { data: PercursoData }) {
   const maxMonthly = Math.max(1, ...data.monthly.map((month) => month.count));
   const [currentLabel, previousLabel] = [monthName(data.compare.currentMonth), monthName(data.compare.previousMonth)];
 
@@ -66,8 +62,6 @@ export function PercursoSections({ data, tonicPosition, attendance }: { data: Pe
           <h2 className="mt-1 text-2xl font-semibold text-ink">Percurso</h2>
         </div>
       </div>
-
-      {attendance ? <AttendanceCard current={attendance.current} previous={attendance.previous} /> : null}
 
       <Card className="mt-4">
         <div className="flex items-baseline justify-between gap-3">
@@ -120,15 +114,12 @@ export function PercursoSections({ data, tonicPosition, attendance }: { data: Pe
       <Card className="mt-4">
         <h3 className="text-lg font-semibold text-ink">{capitalize(currentLabel)} × {previousLabel}</h3>
         <p className="mt-1 text-xs text-ink/60">Mesmo trecho do mês: dias 1 a {data.compare.day}</p>
-        <div className="mt-3 divide-y divide-[#f0ebe1]">
-          {data.compare.rows.map((row) => (
-            <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_64px_64px_48px] items-center gap-2 py-2.5">
-              <span className="text-sm font-semibold">{row.label}</span>
-              <span className="text-right text-base font-semibold">{formatValue(row.now, row.unit)}</span>
-              <span className="text-right text-sm text-ink/60">{formatValue(row.before, row.unit)}</span>
-              <span className="text-right text-sm"><Delta value={row.unit ? null : row.now - row.before} arrowOnly={row.unit ? Math.sign(row.now - row.before) : undefined} /></span>
-            </div>
-          ))}
+        <div className="mt-4 space-y-4">
+          {data.compare.rows.map((row) => <CompareRow key={row.label} {...row} />)}
+        </div>
+        <div className="mt-3 flex gap-4 text-[11.5px] text-ink/60" aria-hidden="true">
+          <span className="flex items-center gap-1.5"><i className="block h-3 w-3 rounded-full border-2 border-ink/35 bg-white" />{previousLabel}</span>
+          <span className="flex items-center gap-1.5"><i className="block h-3 w-3 rounded-full bg-moss" />{currentLabel}</span>
         </div>
       </Card>
 
@@ -158,20 +149,6 @@ export function PercursoSections({ data, tonicPosition, attendance }: { data: Pe
         </dl>
       </Card>
 
-      <Card className="mt-4">
-        <h3 className="text-lg font-semibold text-ink">Próximos marcos</h3>
-        <div className="mt-3 space-y-4">
-          {milestones.map((item) => (
-            <div key={item.label}>
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="font-semibold">{item.label}</span>
-                <span className="whitespace-nowrap text-ink/60">{item.note}</span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#efeae0]"><div className="h-full rounded-full bg-olive" style={{ width: `${Math.round(item.current / item.target * 100)}%` }} /></div>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {data.memory ? (
         <Card className="mt-4 border border-dashed border-[#cbbfa8] bg-[#fbf8f1]">
@@ -188,7 +165,7 @@ export function PercursoSections({ data, tonicPosition, attendance }: { data: Pe
   );
 }
 
-function AttendanceCard({ current, previous }: { current: ReflectionAttendance; previous: ReflectionAttendance }) {
+export function AttendanceCard({ current, previous }: { current: ReflectionAttendance; previous: ReflectionAttendance }) {
   const percent = current.percent ?? 0;
   const tone = percent >= ATTENDANCE_GOAL ? { text: "text-emerald-800", bar: "#2f6b2a" } : percent >= 70 ? { text: "text-amber-800", bar: "#a87600" } : { text: "text-red-800", bar: "#b23a2c" };
   const missing = Math.max(0, Math.ceil(current.due * ATTENDANCE_GOAL / 100) - current.done);
@@ -221,6 +198,27 @@ function AttendanceCard({ current, previous }: { current: ReflectionAttendance; 
   );
 }
 
+/** Last month (hollow dot) and this month (filled) on one line: the gap between them is the change. */
+function CompareRow({ label, now, before, unit }: { label: string; now: number; before: number; unit?: "ml" }) {
+  const max = Math.max(now, before, 1) * 1.08;
+  const [left, right] = [before / max * 100, now / max * 100];
+  const change = now - before;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-semibold">{label}</span>
+        <span className="tabular-nums text-ink/65">{change === 0 ? `igual: ${formatValue(now, unit)}` : `de ${formatValue(before, unit)} para ${formatValue(now, unit)}`}</span>
+      </div>
+      <div className="relative mt-1.5 h-4" role="img" aria-label={`${label}: ${formatValue(before, unit)} antes, ${formatValue(now, unit)} agora`}>
+        <span className="absolute inset-x-0 top-[7px] h-0.5 rounded bg-[#efeae0]" />
+        <span className="absolute top-[7px] h-0.5 bg-olive" style={{ left: `${Math.min(left, right)}%`, width: `${Math.abs(right - left)}%` }} />
+        <span className="absolute top-0.5 -ml-1.5 h-3 w-3 rounded-full border-2 border-ink/35 bg-white" style={{ left: `${left}%` }} />
+        <span className={`absolute top-0.5 -ml-1.5 h-3 w-3 rounded-full ${change < 0 ? "bg-terra" : "bg-moss"}`} style={{ left: `${right}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function Stat({ value, tone, title, detail }: { value: number; tone: string; title: string; detail: string }) {
   return (
     <div className="rounded-xl border border-line bg-white p-3.5">
@@ -235,12 +233,10 @@ function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between gap-3 py-2.5"><dt>{label}</dt><dd className="whitespace-nowrap font-semibold">{value}</dd></div>;
 }
 
-function Delta({ value, arrowOnly }: { value: number | null; arrowOnly?: number }) {
-  const sign = arrowOnly ?? Math.sign(value ?? 0);
+function Delta({ value }: { value: number | null }) {
+  const sign = Math.sign(value ?? 0);
   if (!sign) return <span className="font-semibold text-ink/50">=</span>;
-  const arrow = sign > 0 ? "↑" : "↓";
-  const text = arrowOnly !== undefined ? arrow : `${arrow} ${Math.abs(value ?? 0)}`;
-  return <span className={`font-semibold ${sign > 0 ? "text-emerald-800" : "text-red-800"}`}>{text}</span>;
+  return <span className={`font-semibold ${sign > 0 ? "text-emerald-800" : "text-red-800"}`}>{sign > 0 ? "↑" : "↓"} {Math.abs(value ?? 0)}</span>;
 }
 
 function groupFullName(code: PracticeGroupCode) {

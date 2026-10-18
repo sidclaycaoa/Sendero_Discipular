@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Titles of the Jornada (Cormorant SC, SIL Open Font License, served by the app itself). */
+@font-face { font-family: "Cormorant SC"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/cormorant-sc-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Cormorant SC"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/cormorant-sc-latin-700-normal.woff2") format("woff2"); }
+
 @theme {
   --color-ink: #1f2528;
   --color-olive: #66704f;
@@ -7,6 +11,10 @@
   --color-clay: #b85d3b;
   --color-paper: #f7f4ed;
   --color-line: #ded7ca;
+  --color-vase: #1d1a17;
+  --color-terra: #c46a3d;
+  --color-bronze: #8a6d3b;
+  --font-myth: "Cormorant SC", Georgia, "Times New Roman", serif;
   --shadow-soft: 0 12px 30px rgba(31, 37, 40, 0.08);
 }
 

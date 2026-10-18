@@ -3,7 +3,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { readdir, readFile } from "node:fs/promises";
 
-// Real SQLite + the built Worker: Início shows the day on top and the Percurso below.
+// Real SQLite + the built Worker: Início shows the day and the labor of the month; the Percurso lives in the Jornada.
 class D1 {
   constructor() { this.sqlite = new DatabaseSync(":memory:"); }
   prepare(sql) {
@@ -19,7 +19,7 @@ class D1 {
   async batch(statements) { for (const s of statements) this.sqlite.prepare(s._sql).run(...s._args()); return statements.map(() => ({ results: [], success: true, meta: {} })); }
 }
 
-test("Início shows today's rings and the real Percurso indicators", async () => {
+test("Início shows today's rings and the Jornada card; the Jornada keeps the real Percurso indicators", async () => {
   const db = new D1();
   for (const file of (await readdir(new URL("../migrations/", import.meta.url))).filter(f => f.endsWith(".sql")).sort()) db.sqlite.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
   const now = new Date().toISOString();
@@ -32,7 +32,7 @@ test("Início shows today's rings and the real Percurso indicators", async () =>
   const ctx = { waitUntil() {}, passThroughOnException() {} };
   const login = await worker.fetch(new Request("https://s/entrar", { method: "POST", body: new URLSearchParams({ senha: env.SENDERO_SENHA }) }), env, ctx);
   const cookie = login.headers.get("set-cookie").split(";")[0];
-  const get = async (path) => { const r = await worker.fetch(new Request(`https://s${path}`, { headers: { accept: "text/html", cookie } }), env, ctx); return { status: r.status, text: (await r.text()).replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") }; };
+  const get = async (path) => { const r = await worker.fetch(new Request(`https://s${path}`, { headers: { accept: "text/html", cookie } }), env, ctx); return { status: r.status, text: (await r.text()).replace(/<!-- -->/g, "").replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") }; };
 
   await get("/habitos"); // seeds the default practices
   const practice = db.sqlite.prepare('SELECT id FROM "HabitTemplate" WHERE title = ?').get("Eu Sou Discípulo");
@@ -42,9 +42,17 @@ test("Início shows today's rings and the real Percurso indicators", async () =>
 
   const page = await get("/inicio");
   assert.equal(page.status, 200);
-  for (const section of ["O dia até agora", "Mapa de presença", "Retomadas no dia seguinte", "Força das práticas", "Reflexões por mês", "Próximos marcos", "Exportar dados por período"]) assert.ok(page.text.includes(section), section);
   // Diary saved today counts as the "Escrever o Diário" practice: 2 of the 3 daily ED practices done.
+  assert.ok(page.text.includes("O dia até agora"));
   assert.match(page.text, /2\/3 Práticas ED/);
-  assert.match(page.text, /1 Retomadas no dia seguinte/);
-  assert.match(page.text, /3 de 30 dias presentes/);
+  // The Percurso moved to the Jornada; Início keeps one card with the labor of the month.
+  assert.ok(!page.text.includes("Mapa de presença"));
+  assert.match(page.text, /Jornada · Hércules I · o chamado O Leão de Nemeia/);
+  assert.match(page.text, /Hoje, na jornada: começa o Leão de Nemeia · o primeiro Diário\./);
+
+  const jornada = await get("/jornada");
+  assert.equal(jornada.status, 200);
+  for (const section of ["Mapa de presença", "Retomadas no dia seguinte", "Força das práticas", "Reflexões por mês", "Exportar dados por período"]) assert.ok(jornada.text.includes(section), section);
+  assert.match(jornada.text, /1 Retomadas no dia seguinte/);
+  assert.match(jornada.text, /3 de 30 dias presentes/);
 });
