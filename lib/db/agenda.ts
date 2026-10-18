@@ -111,14 +111,20 @@ export async function clearCheckedShopping(userId: string) {
 
 /**
  * Phone notices for the cron: tasks with an hour at that hour, events 15
- * minutes before. Each goes out once; `minutes` is now in São Paulo.
+ * minutes before, class readings due today or tomorrow (09:00) and the eve
+ * of a Escola class (20:00). Each goes out once; `minutes` is now in São Paulo.
  */
 export async function dueAgendaNotices(userId: string, today: string, minutes: number, lateLimit: number) {
   const db = getSenderoDb();
-  const [tasks, events, sent] = await Promise.all([
+  const tomorrow = addDays(today, 1);
+  const [tasks, events, sent, readings, classes] = await Promise.all([
     db.prepare('SELECT id, title, dueTime FROM "TaskOccurrence" WHERE userId = ? AND dueDate = ? AND dueTime IS NOT NULL AND completedAt IS NULL AND status != \'CANCELED\'').bind(userId, today).all<{ id: string; title: string; dueTime: string }>(),
     db.prepare('SELECT id, title, startsAt, location FROM "Event" WHERE userId = ? AND substr(startsAt, 1, 10) = ? AND length(startsAt) >= 16').bind(userId, today).all<{ id: string; title: string; startsAt: string; location: string | null }>(),
     db.prepare('SELECT key FROM "AgendaNotice" WHERE userId = ?').bind(userId).all<{ key: string }>(),
+    // Class readings due today or tomorrow, still not read.
+    db.prepare('SELECT id, title, dueDate FROM "ReadingItem" WHERE userId = ? AND kind = \'AULA\' AND status != \'LIDO\' AND archivedAt IS NULL AND dueDate IN (?, ?)').bind(userId, today, tomorrow).all<{ id: string; title: string; dueDate: string }>(),
+    // A Escola class tomorrow.
+    db.prepare('SELECT id, title FROM "SchoolClass" WHERE userId = ? AND date = ?').bind(userId, tomorrow).all<{ id: string; title: string | null }>(),
   ]);
   const already = new Set(sent.results.map((row) => row.key));
   const due = (time: string, before: number) => {
@@ -126,10 +132,16 @@ export async function dueAgendaNotices(userId: string, today: string, minutes: n
     return minutes >= at && minutes - at <= lateLimit;
   };
   return [
+    // Class readings at 09:00, on the eve and on the day.
+    ...readings.results.filter((reading) => due("09:00", 0) && !already.has(`LEITURA:${reading.id}:${today}`))
+      .map((reading) => ({ key: `LEITURA:${reading.id}:${today}`, url: `/leitura/${reading.id}`, body: `Leitura de aula para ${reading.dueDate === today ? "hoje" : "amanhã"}: ${reading.title}` })),
+    // The eve of a class, at 20:00.
+    ...classes.results.filter((item) => due("20:00", 0) && !already.has(`AULA:${item.id}`))
+      .map((item) => ({ key: `AULA:${item.id}`, url: "/escola", body: `Amanhã tem aula${item.title ? ` (${item.title})` : ""}. Veja o que levar.` })),
     ...tasks.results.filter((task) => due(task.dueTime, 0) && !already.has(`TASK:${task.id}`))
-      .map((task) => ({ key: `TASK:${task.id}`, body: `${task.dueTime} · ${task.title}` })),
+      .map((task) => ({ key: `TASK:${task.id}`, url: "/tarefas", body: `${task.dueTime} · ${task.title}` })),
     ...events.results.filter((event) => due(event.startsAt.slice(11, 16), 15) && !already.has(`EVENT:${event.id}`))
-      .map((event) => ({ key: `EVENT:${event.id}`, body: `Às ${event.startsAt.slice(11, 16)} · ${event.title}${event.location ? ` · ${event.location}` : ""}` })),
+      .map((event) => ({ key: `EVENT:${event.id}`, url: "/tarefas", body: `Às ${event.startsAt.slice(11, 16)} · ${event.title}${event.location ? ` · ${event.location}` : ""}` })),
   ];
 }
 

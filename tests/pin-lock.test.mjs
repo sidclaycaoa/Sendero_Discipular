@@ -96,3 +96,12 @@ test("the unlock screen still requires a session", async () => {
   assert.equal(response.status, 303);
   assert.equal(response.headers.get("location"), "/entrar?volta=%2Fdesbloquear");
 });
+
+test("the PIN screen brings its own keypad, so it never depends on the phone keyboard", async () => {
+  const { session } = await login();
+  const page = await (await call("/desbloquear", { headers: { accept: "text/html", cookie: session } })).text();
+  assert.match(page, /<input id="pin" name="pin" type="password" inputmode="none" readonly/);
+  for (const key of ["0", "1", "5", "9"]) assert.ok(page.includes(`data-key="${key}"`), key);
+  assert.ok(page.includes('data-key="apagar"'));
+  assert.ok(!page.includes("autofocus"));
+});

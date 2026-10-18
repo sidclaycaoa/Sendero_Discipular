@@ -137,3 +137,40 @@ test("tasks with an hour remind at that hour and events 15 minutes before, once"
   sent.push(...db.sqlite.prepare('SELECT key FROM "AgendaNotice"').all().map((row) => row.key.split(":")[0]));
   assert.deepEqual(sent.sort(), hour * 60 + minute + 15 < 24 * 60 ? ["EVENT", "TASK"] : ["TASK"]);
 });
+
+/** Runs the cron as if it were a given São Paulo time today. */
+async function cronAt(worker, env, today, time) {
+  const RealDate = globalThis.Date;
+  const fixed = new RealDate(`${today}T${time}:00-03:00`).getTime();
+  globalThis.Date = class extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [fixed])); }
+    static now() { return fixed; }
+  };
+  try {
+    const pending = [];
+    await worker.scheduled({}, env, { waitUntil: (promise) => pending.push(promise), passThroughOnException() {} });
+    await Promise.all(pending);
+  } finally { globalThis.Date = RealDate; }
+}
+
+test("class readings are reminded near the deadline and the eve of a class at 20:00", async () => {
+  const { db, call, today, worker, env } = await setup();
+  db.sqlite.prepare('INSERT INTO "PushSubscription" (id,userId,endpoint,p256dh,auth,origin,createdAt) VALUES (?,?,?,?,?,?,?)')
+    .run("p", "u1", "https://push.example/x", "BOr0Jx3c5_dummy", "c2VjcmV0", "https://s", new Date().toISOString());
+  await (await call("/configuracoes")).text();
+  db.sqlite.prepare('UPDATE "Reminder" SET enabled = 0 WHERE kind <> \'AGENDA\'').run();
+  const reading = await (await call("/api/leitura", { kind: "AULA", title: "Texto da aula 12", dueDate: shift(today, 1) })).json();
+  const done = await (await call("/api/leitura", { kind: "AULA", title: "Já lido", dueDate: shift(today, 1), status: "LIDO" })).json();
+  const aula = await (await call("/api/escola", { action: "criarAula", date: shift(today, 1), title: "A vontade" })).json();
+  const keys = () => db.sqlite.prepare('SELECT key FROM "AgendaNotice"').all().map((row) => row.key);
+
+  await cronAt(worker, env, today, "08:30");
+  assert.deepEqual(keys(), [], "too early");
+  await cronAt(worker, env, today, "09:05");
+  assert.deepEqual(keys(), [`LEITURA:${reading.id}:${today}`]);
+  assert.ok(!keys().some((key) => key.includes(done.id)), "a read one is not reminded");
+  await cronAt(worker, env, today, "09:20");
+  assert.equal(keys().length, 1, "once a day");
+  await cronAt(worker, env, today, "20:05");
+  assert.deepEqual(keys().sort(), [`AULA:${aula.id}`, `LEITURA:${reading.id}:${today}`].sort());
+});
