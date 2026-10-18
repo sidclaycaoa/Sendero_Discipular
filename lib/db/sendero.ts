@@ -703,7 +703,7 @@ export async function createTaskFromReflection(userId: string, templateId: strin
   await db.prepare(`
     INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt)
     VALUES (?, ?, NULL, ?, ?, ?, 2, ?, 'PLANNED', NULL, 'REFLECTION', ?, ?, ?)
-  `).bind(id, userId, `Praticar: ${template.topic}`, template.orientation ?? template.description, now, template.categoryId, template.id, now, now).run();
+  `).bind(id, userId, `Praticar: ${template.topic}`, template.orientation ?? template.description, getSaoPauloDateKey(), template.categoryId, template.id, now, now).run();
   return { id };
 }
 
@@ -727,30 +727,9 @@ export async function getOpenTasks(userId: string): Promise<OpenTask[]> {
   }));
 }
 
-export type TaskBoardItem = OpenTask & { description: string; completed: boolean; isRecurring: boolean };
-export type CalendarEvent = { id: string; title: string; date: string; time: string; endTime: string; location: string; description: string; isRecurring?: boolean };
-export type ShoppingItem = { id: string; title: string; dueDate: string | null; checked: boolean };
-export type PlannerData = { tasks: TaskBoardItem[]; events: CalendarEvent[]; shopping: ShoppingItem[]; rangeStart: string; rangeEnd: string };
+const cleanTime = (value: unknown) => (typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null);
 
-export async function getTaskBoard(userId: string, includeCompleted = false): Promise<TaskBoardItem[]> {
-  await ensureSenderoSeeded();
-  const result = await getSenderoDb().prepare(`
-    SELECT t.*, c.name AS categoryName FROM "TaskOccurrence" t
-    JOIN "Category" c ON c.id = t.categoryId
-    WHERE t.userId = ? AND t.status != 'CANCELED' ${includeCompleted ? "" : "AND t.completedAt IS NULL"}
-    ORDER BY CASE WHEN t.completedAt IS NULL THEN 0 ELSE 1 END, t.dueDate ASC
-  `).bind(userId).all<{ id: string; title: string; description: string | null; dueDate: string; priority: number; originType: string; categoryName: string; completedAt: string | null; seriesId: string | null }>();
-  const today = getSaoPauloDateKey();
-  return result.results.map((task) => ({
-    id: task.id, title: task.title, description: task.description ?? "", date: task.dueDate.slice(0, 10),
-    priority: task.priority >= 3 ? "Muito importante" : task.priority === 2 ? "Importante" : "Normal",
-    origin: task.originType === "REFLECTION" ? "Reflexão" : task.originType === "DIARY" ? "Diário" : "Manual",
-    proximity: task.completedAt ? "done" : task.dueDate.slice(0, 10) < today ? "late" : task.dueDate.slice(0, 10) === today ? "today" : "future",
-    category: task.categoryName, completed: Boolean(task.completedAt), isRecurring: Boolean(task.seriesId),
-  }));
-}
-
-export async function createManualTask({ userId, title, dueDate, priority, description, recurrence, origin = "MANUAL" }: { userId: string; title: string; dueDate: string; priority?: number; description?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] }; origin?: "MANUAL" | "DIARY" }) {
+export async function createManualTask({ userId, title, dueDate, dueTime, priority, description, recurrence, origin = "MANUAL" }: { userId: string; title: string; dueDate: string; dueTime?: unknown; priority?: number; description?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] }; origin?: "MANUAL" | "DIARY" }) {
   await ensureSenderoSeeded();
   const categoryId = await ensureCategory(userId);
   const now = new Date().toISOString();
@@ -759,18 +738,18 @@ export async function createManualTask({ userId, title, dueDate, priority, descr
   const seriesId = recurrence?.frequency ? newId("taskseries") : null;
   if (seriesId) await db.prepare('INSERT INTO "TaskSeries" (id, userId, title, recurrence, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)').bind(seriesId, userId, title.trim(), JSON.stringify(recurrence), now, now).run();
   await db.prepare(`
-    INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, ?, NULL, ?, ?)
-  `).bind(id, userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, origin, now, now).run();
+    INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, dueTime, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, ?, NULL, ?, ?)
+  `).bind(id, userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(dueDate), cleanTime(dueTime), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, origin, now, now).run();
   if (seriesId) {
     const dates = recurrenceDates(dueDate, recurrence!);
-    await db.batch(dates.slice(1).map((date) => db.prepare(`INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, ?, NULL, ?, ?)`)
-      .bind(newId("task"), userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(date), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, origin, now, now)));
+    await db.batch(dates.slice(1).map((date) => db.prepare(`INSERT INTO "TaskOccurrence" (id, userId, seriesId, title, description, dueDate, dueTime, priority, categoryId, status, completedAt, originType, originReflectionTemplateId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', NULL, ?, NULL, ?, ?)`)
+      .bind(newId("task"), userId, seriesId, title.trim(), description?.trim() || null, toDateColumn(date), cleanTime(dueTime), Math.min(3, Math.max(1, Number(priority) || 2)), categoryId, origin, now, now)));
   }
   return { id };
 }
 
-export async function updateTaskState({ userId, taskId, completed, title, dueDate, priority, description }: { userId: string; taskId: string; completed?: boolean; title?: string; dueDate?: string; priority?: number; description?: string }) {
+export async function updateTaskState({ userId, taskId, completed, title, dueDate, dueTime, priority, description }: { userId: string; taskId: string; completed?: boolean; title?: string; dueDate?: string; dueTime?: unknown; priority?: number; description?: string }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   const existing = await db.prepare('SELECT * FROM "TaskOccurrence" WHERE id = ? AND userId = ? LIMIT 1').bind(taskId, userId).first<{ id: string }>();
@@ -779,6 +758,11 @@ export async function updateTaskState({ userId, taskId, completed, title, dueDat
     .bind(completed ? new Date().toISOString() : null, completed ? "DONE" : "PLANNED", new Date().toISOString(), taskId, userId).run();
   if (title?.trim() && dueDate) await db.prepare('UPDATE "TaskOccurrence" SET title = ?, description = ?, dueDate = ?, priority = ?, updatedAt = ? WHERE id = ? AND userId = ?')
     .bind(title.trim(), description?.trim() || null, toDateColumn(dueDate), Math.min(3, Math.max(1, Number(priority) || 2)), new Date().toISOString(), taskId, userId).run();
+  // Moving to another day only ("amanhã", or a date picked in the Agenda).
+  else if (dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate)) await db.prepare('UPDATE "TaskOccurrence" SET dueDate = ?, updatedAt = ? WHERE id = ? AND userId = ?')
+    .bind(dueDate, new Date().toISOString(), taskId, userId).run();
+  if (dueTime !== undefined) await db.prepare('UPDATE "TaskOccurrence" SET dueTime = ?, updatedAt = ? WHERE id = ? AND userId = ?')
+    .bind(cleanTime(dueTime), new Date().toISOString(), taskId, userId).run();
   return { id: taskId };
 }
 
@@ -796,46 +780,6 @@ export async function getDiaryBornTasks(userId: string) {
     ORDER BY dueDate ASC LIMIT 20
   `).bind(userId).all<{ id: string; title: string; dueDate: string }>();
   return result.results;
-}
-
-export async function getCalendarEvents(userId: string): Promise<CalendarEvent[]> {
-  await ensureSenderoSeeded();
-  const result = await getSenderoDb().prepare('SELECT * FROM "Event" WHERE userId = ? ORDER BY startsAt ASC').bind(userId).all<{ id: string; title: string; startsAt: string; endsAt: string | null; location: string | null; description: string | null }>();
-  return result.results.map(toCalendarEvent);
-}
-
-export async function getPlannerData(userId: string, selectedDate = getSaoPauloDateKey()): Promise<PlannerData> {
-  await ensureSenderoSeeded();
-  const db = getSenderoDb();
-  const { rangeStart, rangeEnd } = getCalendarGridRange(selectedDate);
-  const [taskResult, eventResult, shoppingResult] = await Promise.all([
-    db.prepare(`
-      SELECT t.*, c.name AS categoryName FROM "TaskOccurrence" t
-      JOIN "Category" c ON c.id = t.categoryId
-      WHERE t.userId = ? AND t.status != 'CANCELED' AND t.completedAt IS NULL
-      ORDER BY t.priority DESC, t.dueDate ASC
-    `).bind(userId).all<{ id: string; title: string; description: string | null; dueDate: string; priority: number; originType: string; categoryName: string; seriesId: string | null }>(),
-    db.prepare(`
-      SELECT * FROM "Event" WHERE userId = ?
-        AND substr(startsAt, 1, 10) >= ? AND substr(startsAt, 1, 10) <= ?
-      ORDER BY startsAt ASC
-    `).bind(userId, rangeStart, rangeEnd).all<{ id: string; title: string; startsAt: string; endsAt: string | null; location: string | null; description: string | null }>(),
-    db.prepare('SELECT id, title, dueDate, isChecked FROM "ShoppingItem" WHERE userId = ? ORDER BY isChecked ASC, CASE WHEN dueDate IS NULL THEN 1 ELSE 0 END, dueDate ASC, createdAt ASC').bind(userId).all<{ id: string; title: string; dueDate: string | null; isChecked: number }>(),
-  ]);
-  const today = getSaoPauloDateKey();
-  const taskRows = taskResult.results.map((task) => ({
-    task: {
-      id: task.id, title: task.title, description: task.description ?? "", date: task.dueDate.slice(0, 10),
-      priority: task.priority >= 3 ? "Muito importante" : task.priority === 2 ? "Importante" : "Normal",
-      origin: task.originType === "REFLECTION" ? "Reflexão" : task.originType === "DIARY" ? "Diário" : "Manual",
-      proximity: task.dueDate.slice(0, 10) < today ? "late" : task.dueDate.slice(0, 10) === today ? "today" : "future",
-      category: task.categoryName, completed: false, isRecurring: Boolean(task.seriesId),
-    } satisfies TaskBoardItem,
-    seriesId: task.seriesId,
-  }));
-  const tasks = nextTaskInEachSeries(taskRows);
-  const events = nextEventInEachRecurringPattern(eventResult.results.map(toCalendarEvent), selectedDate);
-  return { tasks, events, shopping: shoppingResult.results.map((item) => ({ id: item.id, title: item.title, dueDate: item.dueDate, checked: Boolean(item.isChecked) })), rangeStart, rangeEnd };
 }
 
 export async function createShoppingItem(userId: string, title: string, dueDate?: string) {
@@ -868,37 +812,6 @@ export async function deleteShoppingItem(userId: string, id: string) {
   await getSenderoDb().prepare('DELETE FROM "ShoppingItem" WHERE id = ? AND userId = ?').bind(id, userId).run();
 }
 
-/** Keep a recurring task as one actionable item. Once it is completed, its next open occurrence becomes visible. */
-function nextTaskInEachSeries(rows: Array<{ task: TaskBoardItem; seriesId: string | null }>) {
-  const nextBySeries = new Map<string, TaskBoardItem>();
-  const standalone: TaskBoardItem[] = [];
-  for (const row of rows) {
-    if (!row.seriesId) { standalone.push(row.task); continue; }
-    const current = nextBySeries.get(row.seriesId);
-    if (!current || row.task.date < current.date) nextBySeries.set(row.seriesId, row.task);
-  }
-  return [...standalone, ...nextBySeries.values()];
-}
-
-/**
- * Legacy recurring events are stored as individual Event rows. Group equal future
- * rows in the visible calendar range so the agenda shows only the next occurrence.
- */
-function nextEventInEachRecurringPattern(events: CalendarEvent[], selectedDate: string) {
-  const patterns = new Map<string, CalendarEvent[]>();
-  for (const event of events) {
-    const signature = [event.title, event.time, event.endTime, event.location, event.description].join("\u0001");
-    const group = patterns.get(signature) ?? [];
-    group.push(event); patterns.set(signature, group);
-  }
-  return [...patterns.values()].flatMap((group) => {
-    const distinctDates = new Set(group.map((event) => event.date));
-    if (distinctDates.size < 2) return group;
-    const next = group.find((event) => event.date >= selectedDate) ?? group.at(-1);
-    return next ? [{ ...next, isRecurring: true }] : [];
-  }).sort((left, right) => `${left.date}T${left.time}`.localeCompare(`${right.date}T${right.time}`));
-}
-
 export async function createCalendarEvent({ userId, title, startsAt, endsAt, location, description, recurrence }: { userId: string; title: string; startsAt: string; endsAt?: string; location?: string; description?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] } }) {
   await ensureSenderoSeeded();
   const now = new Date().toISOString(); const id = newId("event");
@@ -925,28 +838,6 @@ export async function updateCalendarEvent({ userId, eventId, title, startsAt, en
 export async function deleteCalendarEvent(userId: string, eventId: string) {
   await ensureSenderoSeeded();
   await getSenderoDb().prepare('DELETE FROM "Event" WHERE id = ? AND userId = ?').bind(eventId, userId).run();
-}
-
-function toCalendarEvent(event: { id: string; title: string; startsAt: string; endsAt: string | null; location: string | null; description: string | null }): CalendarEvent {
-  return {
-    id: event.id,
-    title: event.title,
-    date: event.startsAt.slice(0, 10),
-    time: event.startsAt.slice(11, 16),
-    endTime: event.endsAt?.slice(11, 16) ?? "",
-    location: event.location ?? "",
-    description: event.description ?? "",
-  };
-}
-
-function getCalendarGridRange(selectedDate: string) {
-  const selected = new Date(`${selectedDate}T12:00:00.000Z`);
-  const monthStart = new Date(Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1));
-  const rangeStart = new Date(monthStart);
-  rangeStart.setUTCDate(monthStart.getUTCDate() - monthStart.getUTCDay());
-  const rangeEnd = new Date(rangeStart);
-  rangeEnd.setUTCDate(rangeStart.getUTCDate() + 41);
-  return { rangeStart: rangeStart.toISOString().slice(0, 10), rangeEnd: rangeEnd.toISOString().slice(0, 10) };
 }
 
 export type ReportDashboard = {

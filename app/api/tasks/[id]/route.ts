@@ -5,7 +5,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   const user = await getActiveUser(); const { id } = await params;
-  const body = await request.json() as { kind?: "event"; completed?: boolean; title?: string; dueDate?: string; priority?: number; description?: string; startsAt?: string; endsAt?: string; location?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] } };
+  const body = await request.json() as { kind?: "event"; completed?: boolean; title?: string; dueDate?: string; dueTime?: string | null; priority?: number; description?: string; startsAt?: string; endsAt?: string; location?: string; recurrence?: { frequency?: "daily" | "weekly" | "monthly"; weekdays?: number[] } };
   if (!user) return NextResponse.json({ error: "Usuário indisponível." }, { status: 400 });
   if (body.kind === "event") {
     if (!body.title?.trim() || !body.startsAt) return NextResponse.json({ error: "Informe título, data e horário." }, { status: 400 });

@@ -5,7 +5,7 @@ import { Bell, BellOff, Send } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
 import type { Reminder, ReminderKind } from "@/lib/db/lembretes";
 
-type KindInfo = Record<ReminderKind, { label: string; detail: string }>;
+type KindInfo = Record<ReminderKind, { label: string; detail: string; timed?: false }>;
 type Status = "unsupported" | "needs-install" | "denied" | "off" | "on";
 
 const noSubscribe = () => () => undefined;
@@ -132,7 +132,7 @@ export function RemindersPanel({ reminders: initial, kinds }: { reminders: Remin
               <p className={`text-sm font-semibold ${reminder.enabled ? "text-ink" : "text-ink/45"}`}>{kinds[reminder.kind].label}</p>
               <p className="mt-0.5 text-xs leading-5 text-ink/55">{kinds[reminder.kind].detail}</p>
             </div>
-            <input type="time" aria-label={`Horário: ${kinds[reminder.kind].label}`} value={reminder.time} disabled={!reminder.enabled} onChange={(event) => event.target.value && save(reminder.id, { time: event.target.value })} className="min-h-10 w-[7.25rem] shrink-0 rounded-lg border border-line bg-paper px-2 text-sm tabular-nums disabled:opacity-45" />
+            {kinds[reminder.kind].timed === false ? null : <input type="time" aria-label={`Horário: ${kinds[reminder.kind].label}`} value={reminder.time} disabled={!reminder.enabled} onChange={(event) => event.target.value && save(reminder.id, { time: event.target.value })} className="min-h-10 w-[7.25rem] shrink-0 rounded-lg border border-line bg-paper px-2 text-sm tabular-nums disabled:opacity-45" />}
             <button type="button" role="switch" aria-checked={reminder.enabled} aria-label={`Ligar ${kinds[reminder.kind].label}`} onClick={() => save(reminder.id, { enabled: !reminder.enabled })} className={`relative h-7 w-12 shrink-0 rounded-full transition ${reminder.enabled ? "bg-moss" : "bg-line"}`}>
               <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${reminder.enabled ? "left-[1.4rem]" : "left-0.5"}`} />
             </button>

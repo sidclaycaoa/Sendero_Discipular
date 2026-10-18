@@ -1,18 +1,20 @@
 import { getSaoPauloDateKey } from "@/lib/date";
 import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
 import { getActiveUser, getDiaryEntry, getHabitDashboard, getTodayReflectionTopics } from "@/lib/db/sendero";
+import { claimAgendaNotice, dueAgendaNotices } from "@/lib/db/agenda";
 import { practiceHref } from "@/lib/practice";
 import { generateVapidKeys, sendPush, type VapidKeys } from "@/lib/push";
 
 /** Daily phone reminders. Each one is sent only while something of its kind is still pending today. */
 
-export type ReminderKind = "REFLEXAO" | "PRATICAS" | "DIARIO";
+export type ReminderKind = "REFLEXAO" | "PRATICAS" | "DIARIO" | "AGENDA";
 export type Reminder = { id: string; kind: ReminderKind; time: string; enabled: boolean; lastSentDate: string | null };
 
-export const REMINDER_KINDS: Record<ReminderKind, { label: string; detail: string; defaultTime: string; url: string }> = {
+export const REMINDER_KINDS: Record<ReminderKind, { label: string; detail: string; defaultTime: string; url: string; timed?: false }> = {
   REFLEXAO: { label: "Reflexões do dia", detail: "Só avisa se ainda houver reflexão de hoje por fazer.", defaultTime: "07:00", url: "/refletir" },
   PRATICAS: { label: "Práticas diárias", detail: "Só avisa se faltar alguma prática diária.", defaultTime: "18:00", url: "/habitos" },
   DIARIO: { label: "Diário", detail: "Só avisa se o Diário de hoje estiver em branco.", defaultTime: "21:30", url: "/diario" },
+  AGENDA: { label: "Agenda", detail: "Tarefas com hora, na hora; compromissos, 15 min antes.", defaultTime: "00:00", url: "/tarefas", timed: false },
 };
 
 // A reminder missed by more than this (e.g. a skipped cron run) is dropped instead of arriving late.
@@ -146,8 +148,9 @@ export async function sendDueReminders(now = new Date()) {
   const dateKey = getSaoPauloDateKey(now);
   const minutes = saoPauloMinutes(now);
   const sent: string[] = [];
-  for (const reminder of await listReminders(user.id)) {
-    if (!reminder.enabled || reminder.lastSentDate === dateKey || minutesLate(reminder.time, minutes) === null) continue;
+  const reminders = await listReminders(user.id);
+  for (const reminder of reminders) {
+    if (reminder.kind === "AGENDA" || !reminder.enabled || reminder.lastSentDate === dateKey || minutesLate(reminder.time, minutes) === null) continue;
     // Marked first, so an overlapping run never sends twice.
     const claimed = await db.prepare('UPDATE "Reminder" SET lastSentDate = ? WHERE id = ? AND (lastSentDate IS NULL OR lastSentDate <> ?)').bind(dateKey, reminder.id, dateKey).run();
     if (!Number(claimed.meta?.changes ?? 1)) continue;
@@ -155,6 +158,15 @@ export async function sendDueReminders(now = new Date()) {
     if (!body) continue;
     await deliver(user.id, { title: "Sendero", body, url: REMINDER_KINDS[reminder.kind].url, tag: `sendero-${reminder.kind.toLowerCase()}` });
     sent.push(reminder.kind);
+  }
+
+  // Agenda: tasks with an hour, and events shortly before they start.
+  if (reminders.find((reminder) => reminder.kind === "AGENDA")?.enabled) {
+    for (const notice of await dueAgendaNotices(user.id, dateKey, minutes, LATE_LIMIT_MIN)) {
+      if (!(await claimAgendaNotice(user.id, notice.key))) continue;
+      await deliver(user.id, { title: "Sendero · Agenda", body: notice.body, url: "/tarefas", tag: `sendero-${notice.key.toLowerCase()}` });
+      sent.push(notice.key);
+    }
   }
 
   // Habits with their own hour: a reminder at that time if not done yet today.
