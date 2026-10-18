@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 import { FeedbackButton } from "@/components/app/FeedbackButton";
+import { KeepAwake } from "@/components/app/KeepAwake";
 import { LockGuard } from "@/components/app/LockGuard";
 
 const navItems = [
@@ -45,6 +46,7 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fffaf0_0,#f7f4ed_34%,#ece5d7_100%)] text-ink">
       <LockGuard onReturn={onReturn} />
+      <KeepAwake />
       {visiblePendingHref ? <div className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-clay" aria-hidden="true" /> : null}
 
       <div className="mx-auto grid min-h-screen w-full max-w-[1440px] md:grid-cols-[230px_minmax(0,1fr)]">

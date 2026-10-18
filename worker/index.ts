@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { setSenderoDb } from "../lib/db/bindings";
+import { sendDueReminders } from "../lib/db/lembretes";
 import { handleAuth, withCookie } from "./auth";
 import { handleMcpRequest } from "./mcp";
 
@@ -35,6 +36,12 @@ const worker = {
     const auth = await handleAuth(request, env);
     if ("response" in auth) return auth.response;
     return withCookie(await route(request, env, ctx), auth.setCookie);
+  },
+
+  // Cron (wrangler.jsonc): phone reminders whose time has come.
+  async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext): Promise<void> {
+    setSenderoDb(env.DB);
+    ctx.waitUntil(sendDueReminders().catch((error) => console.error("Lembretes:", error)));
   },
 };
 

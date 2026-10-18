@@ -1,13 +1,17 @@
 /** Guided practice tools that a habit can open from Hábitos (stored in HabitTemplate.practiceTool). */
 
-export type PracticeToolKey = "TRATAK" | "INTERVALOS" | "TEMPLO" | "CAMARA" | "ASANA";
+export type PracticeToolKey = "TRATAK" | "INTERVALOS" | "TEMPLO" | "CAMARA" | "ASANA" | "MEMORIZAR";
 export type AsanaPose = { name: string; src: string };
 
 export type PracticeTool =
   | { key: "TRATAK"; label: string; kind: "tratak"; durationSec: number; hint: string }
   | { key: "INTERVALOS"; label: string; kind: "intervals"; durationSec: number; everySec: number; hint: string }
   | { key: "TEMPLO" | "CAMARA"; label: string; kind: "music"; audioSrc: string; trackName: string; spotifyUrl: string; hint: string }
-  | { key: "ASANA"; label: string; kind: "asana"; durationSec: number; poses: AsanaPose[]; cycleStart: string; hint: string };
+  | { key: "ASANA"; label: string; kind: "asana"; durationSec: number; poses: AsanaPose[]; cycleStart: string; hint: string }
+  | { key: "MEMORIZAR"; label: string; kind: "link"; href: string; hint: string };
+
+/** Tools played on the /praticar screen (the others open their own module). */
+export type PlayableTool = Exclude<PracticeTool, { kind: "link" }>;
 
 export const PRACTICE_TOOLS: Record<PracticeToolKey, PracticeTool> = {
   TRATAK: {
@@ -43,7 +47,18 @@ export const PRACTICE_TOOLS: Record<PracticeToolKey, PracticeTool> = {
     cycleStart: "2026-10-18",
     hint: "Faça a posição do dia por 1 minuto, imaginando a forma e a cor. A cada 6 dias o ciclo recomeça.",
   },
+  MEMORIZAR: {
+    key: "MEMORIZAR", label: "Memorização · textos por linhas", kind: "link", href: "/memorizar",
+    hint: "Abre os textos que você está decorando, linha a linha.",
+  },
 };
+
+/** Where the habit's "Praticar" button goes. */
+export function practiceHref(habitId: string, value: unknown) {
+  const tool = practiceTool(value);
+  if (!tool) return null;
+  return tool.kind === "link" ? tool.href : `/praticar/${habitId}`;
+}
 
 /** The pose for a day (YYYY-MM-DD): the six poses follow in order from cycleStart, one per day. */
 export function asanaOfDay(tool: Extract<PracticeTool, { kind: "asana" }>, dateKey: string) {
