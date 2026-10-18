@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { DbHabit } from "@/lib/db/sendero";
+import { PRACTICE_TOOLS } from "@/lib/practice";
 
 type Cadence = "DAILY" | "WEEKLY" | "TIME_BASED";
 type PracticeGroup = "ED" | "PSYCHOLOGY" | "HABIT";
@@ -14,6 +15,7 @@ export function HabitConfigModal({ open, habit, onClose, onSaved }: { open: bool
   const [cadence, setCadence] = useState<Cadence>(habit?.cadence ?? "DAILY");
   const [practiceGroup, setPracticeGroup] = useState<PracticeGroup>(habit?.practiceGroup ?? "HABIT");
   const [target, setTarget] = useState(habit?.targetCount ?? 1);
+  const [practiceTool, setPracticeTool] = useState<string>(habit?.practiceTool ?? "");
   const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -27,7 +29,7 @@ export function HabitConfigModal({ open, habit, onClose, onSaved }: { open: bool
     try {
       const response = await fetch(habit ? `/api/habits/template/${habit.id}` : "/api/habits/template", {
         method: habit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, cadence, targetCount: target, practiceGroup })
+        body: JSON.stringify({ title, description, cadence, targetCount: target, practiceGroup, practiceTool: practiceTool || null })
       });
       if (!response.ok) { setError("Não foi possível salvar o hábito."); return; }
       setSaved(true);
@@ -44,6 +46,13 @@ export function HabitConfigModal({ open, habit, onClose, onSaved }: { open: bool
         <div className="mt-4 space-y-4">
           <Field label="Nome do hábito" value={title} onChange={setTitle} placeholder="Ex.: Eu Sou Discípulo" />
           <Field label="Detalhamento" value={description} onChange={setDescription} placeholder="Como este hábito deve ser vivido?" />
+          <label className="block"><span className="text-sm font-semibold text-ink">Ferramenta de prática</span>
+            <select className="mt-2 min-h-10 w-full rounded-md border border-line bg-paper px-3 text-sm" value={practiceTool} onChange={(event) => setPracticeTool(event.target.value)}>
+              <option value="">Nenhuma</option>
+              {Object.values(PRACTICE_TOOLS).map((tool) => <option key={tool.key} value={tool.key}>{tool.label}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-ink/55">Com uma ferramenta, o hábito ganha o botão “Praticar” (música, tempo ou imagem).</span>
+          </label>
           <label className="block"><span className="text-sm font-semibold text-ink">Classificação</span><select className="mt-2 min-h-10 w-full rounded-md border border-line bg-paper px-3 text-sm" value={practiceGroup} onChange={(event) => setPracticeGroup(event.target.value as PracticeGroup)}><option value="ED">Prática da ED</option><option value="PSYCHOLOGY">Exercício de psicologia</option><option value="HABIT">Hábito geral</option></select></label>
           <label className="block"><span className="text-sm font-semibold text-ink">Frequência</span><select className="mt-2 min-h-10 w-full rounded-md border border-line bg-paper px-3 text-sm" value={cadence} onChange={(event) => setCadence(event.target.value as Cadence)}><option value="DAILY">Diário</option><option value="WEEKLY">Semanal</option><option value="TIME_BASED">Por tempo</option></select></label>
           <label className="block"><span className="text-sm font-semibold text-ink">{cadence === "WEEKLY" ? "Vezes por semana" : cadence === "TIME_BASED" ? "Meta em minutos" : "Vezes por dia"}</span><input className="mt-2 min-h-10 w-full rounded-md border border-line bg-paper px-3 text-sm" type="number" min="1" value={target} onChange={(event) => setTarget(Math.max(1, Number(event.target.value)))} /></label>
