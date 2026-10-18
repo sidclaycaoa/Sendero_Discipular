@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowLeft, Music2, Play, Square } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
@@ -8,6 +8,13 @@ import type { PracticeTool } from "@/lib/practice";
 
 type PracticeHabit = { id: string; title: string; description: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; todayCount: number; note: string; dateKey: string };
 type Phase = "ready" | "running" | "done";
+
+const noSubscribe = () => () => undefined;
+/** iPhone browsers refuse full screen to web pages; only the installed app hides the bar. */
+function browserHidesBar() {
+  const installed = window.matchMedia("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+  return !installed && !document.fullscreenEnabled;
+}
 
 /**
  * Guided practice: keeps the screen awake, runs the tool (interval bells, Tratak
@@ -24,6 +31,7 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
   const stage = useRef<HTMLDivElement>(null);
   const player = useRef<HTMLAudioElement>(null);
   const duration = tool.kind === "music" ? null : tool.durationSec;
+  const needsInstall = useSyncExternalStore(noSubscribe, browserHidesBar, () => false) && tool.kind === "tratak";
 
   useEffect(() => {
     if (phase !== "running") return;
@@ -127,6 +135,11 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
         <h1 className="mt-1 text-2xl font-semibold text-ink">{habit.title}</h1>
         {habit.description ? <p className="mt-1 text-sm leading-6 text-ink/70">{habit.description}</p> : null}
         <p className="mt-3 rounded-lg bg-paper p-3 text-sm leading-6 text-ink/75">{tool.hint}</p>
+        {needsInstall && phase === "ready" ? (
+          <p className="mt-3 rounded-lg border border-clay/30 bg-clay/5 p-3 text-sm leading-6 text-ink/80">
+            Neste navegador a barra de cima não some. Para o Tratak em tela cheia, abra o Sendero pelo ícone na tela de início: no Safari, toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>.
+          </p>
+        ) : null}
 
         {phase !== "done" ? (
           <div className="mt-5 text-center">
