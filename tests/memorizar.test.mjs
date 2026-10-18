@@ -61,6 +61,8 @@ test("a pasted text becomes lines learned one at a time, and the practice marks 
   for (let i = 0; i < 5; i++) await call("/api/memorizar/progresso", { id: created.id, event: "AVANCOU" });
   assert.equal(db.sqlite.prepare('SELECT currentLine FROM "MemorizationItem" WHERE id = ?').get(created.id).currentLine, 3);
   assert.equal((await (await call("/api/memorizar/progresso", { id: created.id, event: "VOLTOU" })).json()).known, 2);
+  // The lines already learned stay on screen above the one being worked on.
+  assert.match(await text(await call(`/memorizar/${created.id}`)), /Já de cor.*Primeira linha do texto\..*Segunda linha, com vírgula\..*Terceira linha\./);
   const logs = db.sqlite.prepare('SELECT date, note FROM "MemorizationProgressLog" WHERE itemId = ?').all(created.id);
   assert.equal(logs.length, 7);
   assert.ok(logs.every((log) => log.date === today));

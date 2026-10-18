@@ -102,6 +102,10 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pl
       void player.current.play().catch(() => undefined);
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: tool.trackName, artist: habit.title, album: "Sendero" });
     }
+    // iPhone: by default the web's sound follows the silent switch, so the bell
+    // went quiet with the phone on silent. "playback" makes it ring like music.
+    const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+    if (session) session.type = "playback";
     const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     audio.current ??= AudioCtor ? new AudioCtor() : null;
     await audio.current?.resume().catch(() => undefined);
