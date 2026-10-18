@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
+import { FeedbackButton } from "@/components/app/FeedbackButton";
 import { LockGuard } from "@/components/app/LockGuard";
 
 const navItems = [
@@ -61,7 +62,7 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
         </aside>
 
         <main className="min-w-0 px-4 pb-28 pt-4 md:px-8 md:py-8 xl:px-12">
-          <div className="mx-auto w-full max-w-6xl">{showDailyTonic ? <DailyTonicStrip /> : null}{children}</div>
+          <div className="mx-auto w-full max-w-6xl">{showDailyTonic ? <DailyTonicStrip /> : null}{children}<FeedbackButton /></div>
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/96 px-1 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-12px_30px_rgba(31,37,40,0.10)] backdrop-blur md:hidden" aria-label="Navegação principal">

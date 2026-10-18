@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, Edit3, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { MasterQuestionButton } from "@/components/mestre/MasterQuestionButton";
 
 export function DiaryWriter({
   questions,
@@ -21,6 +22,13 @@ export function DiaryWriter({
   const [saved, setSaved] = useState(Boolean(initialAnswers?.some((answer) => answer.trim())));
   const [editing, setEditing] = useState(!initialAnswers?.some((answer) => answer.trim()));
   const [error, setError] = useState<string | null>(null);
+
+  const masterQuestion = (
+    <MasterQuestionButton
+      context={{ sourceType: "DIARIO", sourceDate: dateKey, contextTitle: "Diário do dia" }}
+      getText={() => questions.map((question, index) => answers[index]?.trim() ? `${question}\n${answers[index].trim()}` : "").filter(Boolean).join("\n\n")}
+    />
+  );
 
   async function saveDiary() {
     if (!answers.some((answer) => answer.trim())) return;
@@ -58,6 +66,7 @@ export function DiaryWriter({
       <p className="mt-3 text-base font-semibold text-emerald-950">Você concluiu o diário de hoje.</p>
       <p className="mt-2 text-sm leading-6 text-emerald-900/75">Volte amanhã para refletir novamente. A constância transforma observação em caminho.</p>
       <button onClick={() => setEditing(true)} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-800"><Edit3 className="h-4 w-4" />Editar o diário de hoje</button>
+      <div className="mt-3 text-left">{masterQuestion}</div>
     </div>
   );
 
@@ -93,6 +102,7 @@ export function DiaryWriter({
       >
         <Save className="h-4 w-4" /> {saving ? "Salvando..." : "Salvar diário"}
       </button>
+      {masterQuestion}
     </>
   );
 }

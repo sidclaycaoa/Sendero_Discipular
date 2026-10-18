@@ -1,7 +1,8 @@
-import { NotebookPen, Plus } from "lucide-react";
+import { NotebookPen } from "lucide-react";
 import { AppShell, Card, ModuleHeader, Pill } from "@/components/app/AppShell";
+import { DiaryActions } from "@/components/diario/DiaryActions";
 import { DiaryWriter } from "@/components/diario/DiaryWriter";
-import { getActiveUser, getDailyDiscipleshipTonic, getDiaryEntry } from "@/lib/db/sendero";
+import { getActiveUser, getDailyDiscipleshipTonic, getDiaryBornTasks, getDiaryEntry } from "@/lib/db/sendero";
 import { getSaoPauloDateKey } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +24,11 @@ export default async function DiarioPage() {
   const today = getTodayLabel();
   const todayKey = getSaoPauloDateKey();
   const user = await getActiveUser();
-  const [savedEntry, tonic] = user ? await Promise.all([
+  const [savedEntry, tonic, diaryTasks] = user ? await Promise.all([
     getDiaryEntry(user.id, todayKey).catch(() => null),
     getDailyDiscipleshipTonic(user.id, todayKey).catch(() => null),
-  ]) : [null, null];
+    getDiaryBornTasks(user.id).catch(() => []),
+  ]) : [null, null, []];
   const questions = [...fixedQuestions, getRotatingQuestion(), tonic
     ? `Sobre a Tônica de hoje — ${tonic.code} · ${tonic.title}`
     : "Sobre a Tônica de hoje"];
@@ -49,17 +51,7 @@ export default async function DiarioPage() {
         <DiaryWriter questions={questions} dateKey={todayKey} initialAnswers={savedEntry?.answers} />
       </Card>
 
-      <Card className="mt-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-moss">Ações nascidas do diário</h2>
-          <button className="rounded-md border border-line p-2">
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="text-sm leading-6 text-ink/70">
-          Quando uma resposta pedir atitude, transforme-a em uma tarefa simples e verificável.
-        </p>
-      </Card>
+      <DiaryActions tasks={diaryTasks} defaultDate={addOneDay(todayKey)} />
     </AppShell>
   );
 }
@@ -79,4 +71,10 @@ function getRotatingQuestion() {
   }).format(new Date()));
 
   return rotatingQuestions[(day - 1) % rotatingQuestions.length];
+}
+
+function addOneDay(dateKey: string) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
