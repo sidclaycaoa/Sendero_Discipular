@@ -7,7 +7,7 @@ import { Bell, Check, Clock3, Flame, Minus, Pencil, Play, Plus, Settings2, Trash
 import { AppShell } from "@/components/app/AppShell";
 import { HabitConfigModal } from "@/components/habitos/HabitConfigModal";
 import type { DayPeriod, DbHabit, HabitDashboard } from "@/lib/db/sendero";
-import { DEFAULT_ML_PER_KG, waterGoal } from "@/lib/habit-streak";
+import { DEFAULT_ML_PER_KG, FLAME_TIERS, flameTier, waterGoal } from "@/lib/habit-streak";
 import { practiceHref } from "@/lib/practice";
 
 type Props = { dashboard: HabitDashboard | null };
@@ -242,7 +242,7 @@ function Recent({ habit }: { habit: DbHabit }) {
       <span className="inline-flex gap-[3px]" aria-label={`${last.filter((value) => value === 1).length} de ${last.length} ${habit.cadence === "DAILY" ? "últimos dias" : "últimas semanas"}`}>
         {last.map((value, index) => <i key={index} className={`h-[5px] w-[5px] rounded-full ${value === 1 ? "bg-moss" : value === 0 ? (index === last.length - 1 ? "border border-moss/50" : "bg-[#e3dccd]") : "bg-transparent"}`} />)}
       </span>
-      {habit.streak >= (habit.cadence === "DAILY" ? 3 : 2) ? <span className="inline-flex items-center gap-0.5 font-semibold text-clay" aria-label={`sequência de ${habit.streak} ${unit}`}><Flame className="h-3 w-3" aria-hidden="true" />{habit.streak}</span> : null}
+      {habit.streak >= (habit.cadence === "DAILY" ? 3 : 2) ? <span className="inline-flex items-center gap-0.5 font-semibold text-ink/70" aria-label={`sequência de ${habit.streak} ${unit}, chama ${flameTier(habit.streak, habit.cadence === "DAILY").name.toLowerCase()}`}><TierFlame streak={habit.streak} daily={habit.cadence === "DAILY"} className="h-3.5 w-3.5" />{habit.streak}</span> : null}
     </span>
   );
 }
@@ -319,6 +319,26 @@ function HabitSheet({ habit, onClose, onSave, onEdit, onDelete }: { habit: DbHab
   );
 }
 
+/** The flame in the colour of the run's tier. */
+function TierFlame({ streak, daily, className }: { streak: number; daily: boolean; className: string }) {
+  const tier = flameTier(streak, daily);
+  return <Flame className={className} fill={tier.fill} stroke={tier.stroke} strokeWidth={1.6} aria-hidden="true" />;
+}
+
+/** Where the run is on the colour ladder, and what comes next. */
+function FlameLadder({ streak, daily }: { streak: number; daily: boolean }) {
+  const tier = flameTier(streak, daily);
+  const unit = (count: number) => (daily ? (count === 1 ? "dia" : "dias") : (count === 1 ? "semana" : "semanas"));
+  return (
+    <div className="mt-3 rounded-xl border border-line px-3 py-2">
+      <div className="flex items-center justify-between gap-1">
+        {FLAME_TIERS.map((item, index) => <Flame key={item.name} className={`h-4 w-4 ${index > tier.index ? "opacity-25" : ""}`} fill={item.fill} stroke={item.stroke} strokeWidth={1.6} aria-label={item.name} />)}
+      </div>
+      <p className="mt-1.5 text-center text-xs text-ink/65">{streak ? <>Chama <strong>{tier.name.toLowerCase()}</strong></> : "Comece a sequência hoje"}{tier.next ? ` · ${tier.next.name.toLowerCase()} em ${tier.next.left} ${unit(tier.next.left)}` : " · o topo"}</p>
+    </div>
+  );
+}
+
 /** The run, the record and the last 3 months (or 13 weeks) in squares. */
 function History({ habit }: { habit: DbHabit }) {
   const daily = habit.cadence === "DAILY";
@@ -327,10 +347,11 @@ function History({ habit }: { habit: DbHabit }) {
   return (
     <div className="mt-4">
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl bg-paper p-2"><p className="flex items-center justify-center gap-1 text-lg font-semibold text-ink"><Flame className="h-4 w-4 text-clay" aria-hidden="true" />{habit.streak}</p><p className="text-[11px] text-ink/55">{unit(habit.streak)} seguidos</p></div>
+        <div className="rounded-xl bg-paper p-2"><p className="flex items-center justify-center gap-1 text-lg font-semibold text-ink"><TierFlame streak={habit.streak} daily={daily} className="h-5 w-5" />{habit.streak}</p><p className="text-[11px] text-ink/55">{unit(habit.streak)} seguidos</p></div>
         <div className="rounded-xl bg-paper p-2"><p className="text-lg font-semibold text-ink">{habit.bestStreak}</p><p className="text-[11px] text-ink/55">recorde ({unit(habit.bestStreak)})</p></div>
         <div className="rounded-xl bg-paper p-2"><p className="text-lg font-semibold text-ink">{habit.monthRate ?? Math.round((habit.history.filter((value) => value === 1).length / Math.max(1, habit.history.filter((value) => value !== null).length)) * 100)}%</p><p className="text-[11px] text-ink/55">{daily ? "deste mês" : "das 13 semanas"}</p></div>
       </div>
+      <FlameLadder streak={habit.streak} daily={daily} />
       <div className="mt-3 grid grid-flow-col gap-[3px]" style={{ gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }} aria-label={daily ? "Últimos 3 meses" : "Últimas 13 semanas"}>
         {habit.history.map((value, index) => <i key={index} className={`aspect-square rounded-[3px] ${value === 1 ? "bg-moss" : value === 0 ? "bg-[#ebe5d8]" : "bg-transparent"}`} />)}
       </div>
