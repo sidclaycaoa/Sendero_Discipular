@@ -174,3 +174,15 @@ test("class readings are reminded near the deadline and the eve of a class at 20
   await cronAt(worker, env, today, "20:05");
   assert.deepEqual(keys().sort(), [`AULA:${aula.id}`, `LEITURA:${reading.id}:${today}`].sort());
 });
+
+test("habits on the day's agenda show done (✓) or still open", async () => {
+  const { call, today } = await setup();
+  await call.patch("/api/habits/template/hab_varrer", { title: "Varrer por dentro", cadence: "DAILY", targetCount: 1, scheduledTime: "07:00" });
+  await call.patch("/api/habits/template/hab_ordenar", { title: "Ordenar o ambiente", cadence: "DAILY", targetCount: 1, scheduledTime: "08:00" });
+  await call("/api/habits/progress", { habitId: "hab_varrer", dateKey: today, count: 1 });
+  const html = (await (await call("/tarefas")).text()).replaceAll("<!-- -->", "");
+  assert.match(html, /text-emerald-700[^>]*>.*?07:00 · Varrer por dentro ✓/s);
+  assert.match(html, /text-red-600\/80[^>]*>.*?08:00 · Ordenar o ambiente</s);
+  const tomorrow = (await (await call(`/tarefas?data=${shift(today, 1)}`)).text()).replaceAll("<!-- -->", "");
+  assert.match(tomorrow, /text-ink\/40[^>]*>.*?07:00 · Varrer por dentro</s, "days ahead stay neutral");
+});

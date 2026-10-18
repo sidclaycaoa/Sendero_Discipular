@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, MapPin, Plus, Repeat2, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Pencil, Plus, Repeat2, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { addDay, EventSheet, longDate, NewItemSheet, PriorityFlag, QuickAdd, shortDate, TaskSheet, useAgenda } from "@/components/agenda/sheets";
 import type { AgendaEvent, AgendaTask, getAgendaDay, getAgendaWeek, getShopping } from "@/lib/db/agenda";
@@ -125,10 +125,14 @@ function DayView({ day, onTask, onEvent, onMore }: { day: Day; onTask: (task: Ag
   );
 }
 
-type TimelineEntry = { key: string; time: string } & ({ kind: "event"; event: AgendaEvent } | { kind: "task"; task: AgendaTask } | { kind: "habit"; habit: { title: string; time: string } });
+type TimelineEntry = { key: string; time: string } & ({ kind: "event"; event: AgendaEvent } | { kind: "task"; task: AgendaTask } | { kind: "habit"; habit: { title: string; time: string; done: boolean | null } });
 
 function TimelineItem({ item, onTask, onEvent }: { item: TimelineEntry; onTask: (task: AgendaTask) => void; onEvent: (event: AgendaEvent) => void }) {
-  if (item.kind === "habit") return <p className="flex items-center gap-1.5 py-0.5 text-[11px] text-ink/40"><i className="h-px w-3 bg-ink/25" />{item.time} · {item.habit.title}</p>;
+  if (item.kind === "habit") {
+    // Done in green, still open (today or before) in red, future days neutral.
+    const tone = item.habit.done === true ? "text-emerald-700" : item.habit.done === false ? "text-red-600/80" : "text-ink/40";
+    return <p className={`flex items-center gap-1.5 py-0.5 text-[11px] ${tone}`}><i className="h-px w-3 bg-current opacity-50" />{item.time} · {item.habit.title}{item.habit.done ? " ✓" : ""}</p>;
+  }
   if (item.kind === "event") {
     const { event } = item;
     return (
@@ -159,6 +163,7 @@ function TaskRow({ task, onOpen, note, late, compact }: { task: AgendaTask; onOp
           </span>
         ) : null}
       </button>
+      <button type="button" onClick={onOpen} aria-label={`Editar ${task.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/35"><Pencil className="h-4 w-4" /></button>
     </div>
   );
 }
