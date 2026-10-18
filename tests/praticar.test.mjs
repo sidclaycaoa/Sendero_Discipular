@@ -80,3 +80,18 @@ test("migration 0008 attaches tools to the exercises that already exist", async 
   const tools = Object.fromEntries(db.sqlite.prepare('SELECT title, practiceTool FROM "HabitTemplate" WHERE practiceTool IS NOT NULL').all().map((row) => [row.title, row.practiceTool]));
   assert.deepEqual(tools, { "Templo Interior": "TEMPLO", "Tratak": "TRATAK", "Câmara de Purificação": "CAMARA", "Exercício das formas geométricas": "INTERVALOS" });
 });
+
+test("Asana Yoga shows one pose a day, in order, restarting every 6 days", async () => {
+  const { db, call, today } = await setup();
+  const now = new Date().toISOString();
+  const category = db.sqlite.prepare('SELECT id FROM "Category" LIMIT 1').get().id;
+  db.sqlite.prepare('INSERT INTO "HabitTemplate" (id,userId,title,categoryId,cadence,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)').run("asana", "u1", "AsanaYoga", category, "DAILY", now, now);
+  db.sqlite.exec(await readFile(new URL("../migrations/0009_asana_tool.sql", import.meta.url), "utf8"));
+  assert.equal(db.sqlite.prepare('SELECT practiceTool FROM "HabitTemplate" WHERE id = ?').get("asana").practiceTool, "ASANA");
+
+  const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse("2026-10-18T12:00:00Z")) / 86_400_000);
+  const position = ((days % 6) + 6) % 6 + 1;
+  const html = await (await call("/praticar/asana")).text();
+  assert.match(html, new RegExp(`src="/asana/asana-${position}-[a-z]+\\.png"`));
+  assert.match(await text(await call("/praticar/asana")), new RegExp(`posição ${position} de 6`));
+});

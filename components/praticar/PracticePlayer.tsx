@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowLeft, Music2, Play, Square } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
-import type { PracticeTool } from "@/lib/practice";
+import { asanaOfDay, type PracticeTool } from "@/lib/practice";
 
 type PracticeHabit = { id: string; title: string; description: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; todayCount: number; note: string; dateKey: string };
 type Phase = "ready" | "running" | "done";
@@ -31,7 +31,9 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
   const stage = useRef<HTMLDivElement>(null);
   const player = useRef<HTMLAudioElement>(null);
   const duration = tool.kind === "music" ? null : tool.durationSec;
-  const needsInstall = useSyncExternalStore(noSubscribe, browserHidesBar, () => false) && tool.kind === "tratak";
+  const fullScreen = tool.kind === "tratak" || tool.kind === "asana";
+  const needsInstall = useSyncExternalStore(noSubscribe, browserHidesBar, () => false) && fullScreen;
+  const asana = tool.kind === "asana" ? asanaOfDay(tool, habit.dateKey) : null;
 
   useEffect(() => {
     if (phase !== "running") return;
@@ -79,9 +81,9 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
 
   async function start() {
     // Things that need the tap itself come first, before anything is awaited.
-    if (tool.kind === "tratak") {
+    if (fullScreen) {
       void document.documentElement.requestFullscreen?.({ navigationUI: "hide" })
-        .then(() => (screen.orientation as unknown as { lock?: (orientation: string) => Promise<void> }).lock?.("landscape"))
+        .then(() => (screen.orientation as unknown as { lock?: (orientation: string) => Promise<void> }).lock?.(tool.kind === "tratak" ? "landscape" : "portrait"))
         .catch(() => undefined);
     }
     if (tool.kind === "music" && player.current) {
@@ -130,14 +132,29 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
         </div>
       ) : null}
 
+      {asana ? (
+        <div className={phase === "running" ? "fixed inset-0 z-[90] bg-[#fbf9f4]" : "hidden"} onClick={() => phase === "running" && finish(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={asana.pose.src} alt={asana.pose.name} className="h-full w-full object-contain" />
+          <span className="absolute bottom-3 right-4 text-base font-semibold tabular-nums text-ink/40">{clock(Math.max(0, (duration ?? 0) - elapsed))}</span>
+        </div>
+      ) : null}
+
       <Card>
         <p className="text-xs font-semibold uppercase tracking-wide text-olive">Prática guiada</p>
         <h1 className="mt-1 text-2xl font-semibold text-ink">{habit.title}</h1>
         {habit.description ? <p className="mt-1 text-sm leading-6 text-ink/70">{habit.description}</p> : null}
         <p className="mt-3 rounded-lg bg-paper p-3 text-sm leading-6 text-ink/75">{tool.hint}</p>
+        {asana && phase === "ready" ? (
+          <figure className="mt-4 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={asana.pose.src} alt={asana.pose.name} className="mx-auto h-72 w-auto rounded-xl border border-line" />
+            <figcaption className="mt-2 text-sm font-semibold text-ink">Hoje: posição {asana.index + 1} de 6 · {asana.pose.name}</figcaption>
+          </figure>
+        ) : null}
         {needsInstall && phase === "ready" ? (
           <p className="mt-3 rounded-lg border border-clay/30 bg-clay/5 p-3 text-sm leading-6 text-ink/80">
-            Neste navegador a barra de cima não some. Para o Tratak em tela cheia, abra o Sendero pelo ícone na tela de início: no Safari, toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>.
+            Neste navegador a barra de cima não some. Para a imagem em tela cheia, abra o Sendero pelo ícone na tela de início: no Safari, toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>.
           </p>
         ) : null}
 
@@ -163,7 +180,7 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
             <Play className="h-5 w-5" aria-hidden="true" /> {tool.kind === "tratak" ? "Começar (deite o celular)" : "Começar"}
           </button>
         ) : null}
-        {phase === "running" && tool.kind !== "tratak" ? (
+        {phase === "running" && !fullScreen ? (
           <button type="button" onClick={() => finish(false)} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink">
             <Square className="h-4 w-4" aria-hidden="true" /> {tool.kind === "music" ? "Concluir prática" : "Encerrar antes"}
           </button>
