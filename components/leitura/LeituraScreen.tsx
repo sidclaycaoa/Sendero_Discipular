@@ -3,12 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookMarked, Check, ChevronDown, ExternalLink, Flame, Plus, Timer } from "lucide-react";
-import { Sheet } from "@/components/app/Sheet";
+import { BookMarked, Check, ChevronRight, Plus, Timer } from "lucide-react";
 import { Cover, dueLabel, ItemForm, progressLabel } from "@/components/leitura/parts";
 import { ReadSheet, useRunningTimer } from "@/components/leitura/ReadSheet";
 import type { getReadingOverview, ReadingItem, ReadingQuote } from "@/lib/db/leitura";
-import { flameTier } from "@/lib/habit-streak";
 
 type Overview = Awaited<ReturnType<typeof getReadingOverview>>;
 type Shelf = "QUERO" | "PAUSADO" | "LIDO";
@@ -47,7 +45,14 @@ export function LeituraScreen({ data, weeklyGoal }: { data: Overview; weeklyGoal
         </button>
       ) : null}
 
-      <BastiaoCard bastiao={data.bastiao} />
+      <Link prefetch={false} href="/escola" className="mt-3 flex items-center gap-3 rounded-2xl border border-line bg-white p-3.5 shadow-soft">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[11px] font-bold uppercase tracking-wide text-clay">Bastiões da aula</span>
+          {data.bastioes.length ? data.bastioes.map((bastiao) => <span key={bastiao.label} className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">{bastiao.read ? <Check className="h-3.5 w-3.5 text-moss" aria-label="lido" /> : <span className="h-1.5 w-1.5 rounded-full bg-clay" aria-label="a ler" />}{bastiao.label}</span>)
+            : <span className="mt-0.5 block text-sm text-ink/60">Registre a aula e o Bastião na Escola</span>}
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-ink/35" aria-hidden="true" />
+      </Link>
 
       <h2 className="mt-5 px-1 text-xs font-bold uppercase tracking-wider text-moss">Lendo agora</h2>
       {active.length ? (
@@ -144,85 +149,5 @@ export function QuoteCard({ quote, showItem, onDelete }: { quote: ReadingQuote; 
         {onDelete ? <button type="button" onClick={onDelete} className="font-semibold text-rose-700">Excluir</button> : null}
       </div>
     </div>
-  );
-}
-
-const formatWeek = (weekStart: string) => {
-  const end = new Date(Date.parse(`${weekStart}T12:00:00Z`) + 6 * 86_400_000).toISOString().slice(0, 10);
-  return `${weekStart.slice(8, 10)}/${weekStart.slice(5, 7)} a ${end.slice(8, 10)}/${end.slice(5, 7)}`;
-};
-
-/** The masters' text of the week: open the site, mark as read, keep the week's notes. */
-function BastiaoCard({ bastiao }: { bastiao: Overview["bastiao"] }) {
-  const router = useRouter();
-  const [read, setRead] = useState(bastiao.current.read);
-  const [title, setTitle] = useState(bastiao.current.title);
-  const [notes, setNotes] = useState(bastiao.current.notes);
-  const [saved, setSaved] = useState(true);
-  const [editingUrl, setEditingUrl] = useState(!bastiao.url);
-  const [url, setUrl] = useState(bastiao.url);
-  const [showPast, setShowPast] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const tier = flameTier(bastiao.streak, false);
-
-  async function patch(body: Record<string, unknown>) {
-    setError(null);
-    const response = await fetch("/api/leitura/bastiao", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
-    if (!response?.ok) { setError((await response?.json().catch(() => null) as { error?: string } | null)?.error ?? "Não foi possível salvar."); return false; }
-    router.refresh();
-    return true;
-  }
-
-  return (
-    <section className="mt-3 rounded-2xl border border-line bg-white p-3.5 shadow-soft">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-clay">Bastião da semana</p>
-          <p className="text-xs text-ink/50">{formatWeek(bastiao.weekStart)}</p>
-        </div>
-        {bastiao.streak ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink/70" aria-label={`${bastiao.streak} semanas seguidas`}><Flame className="h-4 w-4" fill={tier.fill} stroke={tier.stroke} strokeWidth={1.6} aria-hidden="true" />{bastiao.streak} {bastiao.streak === 1 ? "semana" : "semanas"}</span> : null}
-      </div>
-
-      <input value={title} onChange={(event) => { setTitle(event.target.value); setSaved(false); }} onBlur={() => { if (title !== bastiao.current.title) void patch({ title }); }} placeholder="Título do texto desta semana (opcional)" className="mt-2 w-full border-b border-transparent bg-transparent py-1 text-base font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink/35 focus:border-line" />
-
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        {bastiao.url && !editingUrl ? (
-          <a href={bastiao.url} target="_blank" rel="noreferrer" className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-line text-sm font-semibold text-ink"><ExternalLink className="h-4 w-4" aria-hidden="true" /> Abrir o site</a>
-        ) : <span />}
-        <button type="button" onClick={async () => { const next = !read; setRead(next); if (!(await patch({ read: next }))) setRead(!next); }} className={`flex min-h-10 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold ${read ? "bg-moss text-white" : "bg-ink text-paper"}`}><Check className="h-4 w-4" aria-hidden="true" />{read ? "Lido" : "Marcar como lido"}</button>
-      </div>
-      {editingUrl ? (
-        <div className="mt-2 flex gap-2">
-          <input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" placeholder="Endereço do site dos Bastiões (https://…)" className="min-h-10 min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 text-sm" />
-          <button type="button" onClick={async () => { if (await patch({ url })) setEditingUrl(false); }} className="min-h-10 rounded-lg bg-ink px-3 text-sm font-semibold text-paper">Salvar</button>
-        </div>
-      ) : null}
-
-      <label className="mt-3 block"><span className="text-xs font-semibold text-ink/60">Anotações da semana</span>
-        <textarea value={notes} onChange={(event) => { setNotes(event.target.value); setSaved(false); }} rows={3} placeholder="O que tocou você, ideias, perguntas…" className="mt-1 w-full rounded-lg border border-line bg-paper p-3 text-sm leading-6 outline-none focus:border-moss" />
-      </label>
-      <div className="flex items-center justify-between">
-        <button type="button" disabled={saved} onClick={async () => { if (await patch({ notes })) setSaved(true); }} className="text-sm font-semibold text-moss disabled:text-ink/35">{saved ? "Anotações salvas" : "Salvar anotações"}</button>
-        <div className="flex gap-3">
-          {bastiao.url && !editingUrl ? <button type="button" onClick={() => setEditingUrl(true)} className="text-[11px] font-semibold text-ink/45">trocar site</button> : null}
-          {bastiao.past.length ? <button type="button" onClick={() => setShowPast(true)} className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-ink/55">semanas anteriores <ChevronDown className="h-3 w-3" aria-hidden="true" /></button> : null}
-        </div>
-      </div>
-      {error ? <p role="alert" className="mt-1 text-sm font-semibold text-red-800">{error}</p> : null}
-
-      {showPast ? (
-        <Sheet title="Bastiões anteriores" onClose={() => setShowPast(false)}>
-          <ul className="mt-3 space-y-3">
-            {bastiao.past.map((week) => (
-              <li key={week.weekStart} className="rounded-xl bg-paper p-3">
-                <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-ink">{week.title || "Sem título"}</p><span className={`text-[11px] font-semibold ${week.read ? "text-moss" : "text-ink/40"}`}>{week.read ? "lido" : "não marcado"}</span></div>
-                <p className="text-[11px] text-ink/45">{formatWeek(week.weekStart)}</p>
-                {week.notes ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-ink/80">{week.notes}</p> : null}
-              </li>
-            ))}
-          </ul>
-        </Sheet>
-      ) : null}
-    </section>
   );
 }

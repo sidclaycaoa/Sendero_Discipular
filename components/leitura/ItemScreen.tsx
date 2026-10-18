@@ -7,7 +7,8 @@ import { ArrowLeft, Pencil, Plus, Timer, Trash2 } from "lucide-react";
 import { Cover, dueLabel, ItemForm, progressLabel } from "@/components/leitura/parts";
 import { QuoteCard } from "@/components/leitura/LeituraScreen";
 import { ReadSheet, useRunningTimer } from "@/components/leitura/ReadSheet";
-import { READING_KINDS, READING_STATUS, type getReadingItem } from "@/lib/db/leitura";
+import type { getReadingItem } from "@/lib/db/leitura";
+import { READING_KINDS, READING_STATUS } from "@/lib/leitura-shared";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof getReadingItem>>>;
 
