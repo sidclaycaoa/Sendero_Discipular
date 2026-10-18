@@ -1,5 +1,6 @@
 import { calculateCycleDay, getSaoPauloDateKey, getSaoPauloDayOfMonth, isSameWeek } from "@/lib/date";
 import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
+import { addDays as addDayKeys, streaks, waterGoal, weekStart } from "@/lib/habit-streak";
 import { practiceToolKey, type PracticeToolKey } from "@/lib/practice";
 
 const ACTIVE_USER_EMAIL = "sidclay@example.com";
@@ -133,6 +134,15 @@ export type DbHabit = {
   remind: boolean;
   /** ISO time of today's last mark, when there is one. */
   doneAt: string | null;
+  /** Minutes logged today (time-based habits count the whole week in progress). */
+  todayMinutes: number;
+  /** Current and best run, in days (daily) or weeks (weekly and time-based); one miss is forgiven. */
+  streak: number;
+  bestStreak: number;
+  /** Oldest first, ending today / this week: 1 done, 0 missed, null before the habit existed. Days: 91; weeks: 13. */
+  history: Array<0 | 1 | null>;
+  /** Share of days done this month so far (daily habits). */
+  monthRate: number | null;
 };
 
 export type DayPeriod = "MANHA" | "TARDE" | "NOITE";
@@ -149,6 +159,7 @@ export type HabitDashboard = {
   dateKey: string;
   waterMl: number;
   waterGoalMl: number;
+  water: { weightKg: number | null; mlPerKg: number | null; fixedGoalMl: number | null };
   habits: DbHabit[];
 };
 
@@ -1075,7 +1086,7 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
   await ensureDefaultHabitTemplates(userId);
   await ensurePracticeGroups(userId);
 
-  const [templateResult, logResult, waterResult] = await Promise.all([
+  const [templateResult, logResult, waterResult, waterSettings] = await Promise.all([
     db.prepare(`
       SELECT ht.*, c.name AS categoryName, pg.code AS practiceGroup
       FROM "HabitTemplate" ht
@@ -1084,32 +1095,66 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
       LEFT JOIN "PracticeGroup" pg ON pg.id = hpg.groupId
       WHERE ht.userId = ? AND ht.isActive = 1
       ORDER BY pg.sequence ASC, CASE ht.cadence WHEN 'DAILY' THEN 1 WHEN 'WEEKLY' THEN 2 ELSE 3 END, ht.createdAt ASC
-    `).bind(userId).all<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; categoryName: string; practiceGroup: PracticeGroupCode | null; practiceTool: string | null; dayPeriod: string | null; scheduledTime: string | null; remind: number | null }>(),
+    `).bind(userId).all<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; categoryName: string; practiceGroup: PracticeGroupCode | null; practiceTool: string | null; dayPeriod: string | null; scheduledTime: string | null; remind: number | null; createdAt: string }>(),
     db.prepare('SELECT habitId, date, count, minutes, note, createdAt FROM "HabitLog" WHERE userId = ? AND date <= ?')
       .bind(userId, dateKey).all<{ habitId: string; date: string; count: number; minutes: number | null; note: string | null; createdAt: string }>(),
     db.prepare('SELECT COALESCE(SUM(amountMl), 0) AS total FROM "WaterLog" WHERE userId = ? AND date = ?')
       .bind(userId, dateKey).first<{ total: number }>(),
+    db.prepare('SELECT weightKg, waterMlPerKg, waterGoalMl FROM "User" WHERE id = ?').bind(userId).first<{ weightKg: number | null; waterMlPerKg: number | null; waterGoalMl: number | null }>(),
   ]);
+
+  // Per habit, the amount done on each day (counts, or minutes for time-based habits).
+  const byHabit = new Map<string, Map<string, number>>();
+  for (const log of logResult.results) {
+    const days = byHabit.get(log.habitId) ?? new Map<string, number>();
+    const template = templateResult.results.find((item) => item.id === log.habitId);
+    const amount = template?.cadence === "TIME_BASED" ? Number(log.minutes ?? 0) : Number(log.count ?? 0);
+    days.set(log.date.slice(0, 10), (days.get(log.date.slice(0, 10)) ?? 0) + amount);
+    byHabit.set(log.habitId, days);
+  }
 
   const habits = templateResult.results.map((template) => {
     const cadence = normalizeHabitCadence(template.cadence);
+    const target = Math.max(1, Number(template.targetCount ?? 1));
+    const days = byHabit.get(template.id) ?? new Map<string, number>();
+    const firstDay = [template.createdAt?.slice(0, 10), ...days.keys()].filter(Boolean).sort()[0] ?? dateKey;
     const relevant = logResult.results.filter((log) =>
       log.habitId === template.id &&
-      (cadence === "WEEKLY" ? isSameWeek(log.date.slice(0, 10), dateKey) : log.date.slice(0, 10) === dateKey)
+      (cadence === "DAILY" ? log.date.slice(0, 10) === dateKey : isSameWeek(log.date.slice(0, 10), dateKey))
     );
     const progress = cadence === "TIME_BASED"
       ? relevant.reduce((sum, log) => sum + Number(log.minutes ?? 0), 0)
       : relevant.reduce((sum, log) => sum + Number(log.count ?? 0), 0);
     const todayLog = logResult.results.find((log) => log.habitId === template.id && log.date.slice(0, 10) === dateKey);
+
+    let periods: Array<{ key: string; done: boolean }>;
+    if (cadence === "DAILY") {
+      periods = [];
+      for (let day = firstDay; day <= dateKey; day = addDayKeys(day, 1)) periods.push({ key: day, done: (days.get(day) ?? 0) >= target });
+    } else {
+      const totals = new Map<string, number>();
+      days.forEach((amount, day) => totals.set(weekStart(day), (totals.get(weekStart(day)) ?? 0) + amount));
+      periods = [];
+      for (let week = weekStart(firstDay); week <= dateKey; week = addDayKeys(week, 7)) periods.push({ key: week, done: (totals.get(week) ?? 0) >= target });
+    }
+    const run = streaks(periods.map((period) => period.done));
+    const span = cadence === "DAILY" ? 91 : 13;
+    const history = periods.slice(-span).map((period) => (period.done ? 1 : 0) as 0 | 1);
+    const monthDays = cadence === "DAILY" ? periods.filter((period) => period.key.slice(0, 7) === dateKey.slice(0, 7)) : [];
     return {
       id: template.id,
       title: template.title,
       description: template.description ?? "",
       category: template.categoryName,
       cadence,
-      targetCount: Math.max(1, Number(template.targetCount ?? 1)),
+      targetCount: target,
       progress,
       todayCount: Number(todayLog?.count ?? 0),
+      todayMinutes: Number(todayLog?.minutes ?? 0),
+      streak: run.current,
+      bestStreak: run.best,
+      history: [...Array<null>(Math.max(0, span - history.length)).fill(null), ...history],
+      monthRate: monthDays.length ? Math.round((monthDays.filter((period) => period.done).length / monthDays.length) * 100) : null,
       note: todayLog?.note ?? "",
       practiceGroup: template.practiceGroup ?? "HABIT",
       practiceTool: practiceToolKey(template.practiceTool),
@@ -1118,7 +1163,25 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
     };
   });
 
-  return { dateKey, waterMl: Number(waterResult?.total ?? 0), waterGoalMl: 2500, habits };
+  return {
+    dateKey, waterMl: Number(waterResult?.total ?? 0), waterGoalMl: waterGoal(waterSettings ?? {}),
+    water: { weightKg: waterSettings?.weightKg ?? null, mlPerKg: waterSettings?.waterMlPerKg ?? null, fixedGoalMl: waterSettings?.waterGoalMl ?? null },
+    habits,
+  };
+}
+
+/** Water goal settings: weight and ml/kg, or a fixed goal (null to go back to the weight). */
+export async function saveWaterSettings(userId: string, input: { weightKg?: unknown; mlPerKg?: unknown; fixedGoalMl?: unknown }) {
+  await ensureSenderoSeeded();
+  const weight = Number(input.weightKg);
+  const perKg = Number(input.mlPerKg);
+  const fixed = Number(input.fixedGoalMl);
+  await getSenderoDb().prepare('UPDATE "User" SET weightKg = ?, waterMlPerKg = ?, waterGoalMl = ?, updatedAt = ? WHERE id = ?').bind(
+    weight >= 30 && weight <= 300 ? Math.round(weight * 10) / 10 : null,
+    perKg >= 20 && perKg <= 50 ? Math.round(perKg) : null,
+    fixed >= 500 && fixed <= 8000 ? Math.round(fixed) : null,
+    new Date().toISOString(), userId,
+  ).run();
 }
 
 export async function saveHabitProgress({ userId, habitId, dateKey, count, minutes, note }: {

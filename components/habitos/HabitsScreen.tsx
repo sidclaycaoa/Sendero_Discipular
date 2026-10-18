@@ -3,10 +3,11 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Check, Clock3, Minus, Pencil, Play, Plus, Trash2, X } from "lucide-react";
+import { Bell, Check, Clock3, Flame, Minus, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { HabitConfigModal } from "@/components/habitos/HabitConfigModal";
 import type { DayPeriod, DbHabit, HabitDashboard } from "@/lib/db/sendero";
+import { DEFAULT_ML_PER_KG, waterGoal } from "@/lib/habit-streak";
 import { practiceHref } from "@/lib/practice";
 
 type Props = { dashboard: HabitDashboard | null };
@@ -55,6 +56,7 @@ export function HabitsScreen({ dashboard }: Props) {
   const [filter, setFilter] = useState<Filter>("TODOS");
   const [openId, setOpenId] = useState<string | null>(null);
   const [waterOpen, setWaterOpen] = useState(false);
+  const [waterSettingsOpen, setWaterSettingsOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<DbHabit | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,9 +80,11 @@ export function HabitsScreen({ dashboard }: Props) {
     if (!data) return;
     const next = Math.max(0, progress);
     const countForToday = habit.cadence === "WEEKLY" ? Math.max(0, next - (habit.progress - habit.todayCount)) : next;
-    setData((current) => current ? { ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, progress: next, todayCount: habit.cadence === "TIME_BASED" ? item.todayCount : countForToday, note, doneAt: item.doneAt ?? new Date().toISOString() } : item) } : current);
+    // Time-based habits show the week, but each day stores its own minutes.
+    const minutesForToday = habit.cadence === "TIME_BASED" ? Math.max(0, next - (habit.progress - habit.todayMinutes)) : 0;
+    setData((current) => current ? { ...current, habits: current.habits.map((item) => item.id === habit.id ? { ...item, progress: next, todayCount: habit.cadence === "TIME_BASED" ? item.todayCount : countForToday, todayMinutes: minutesForToday, note, doneAt: item.doneAt ?? new Date().toISOString() } : item) } : current);
     setError(null);
-    const payload = { habitId: habit.id, dateKey: data.dateKey, count: habit.cadence === "TIME_BASED" ? 0 : countForToday, minutes: habit.cadence === "TIME_BASED" ? next : 0, note };
+    const payload = { habitId: habit.id, dateKey: data.dateKey, count: habit.cadence === "TIME_BASED" ? 0 : countForToday, minutes: minutesForToday, note };
     const queue = queues.current.get(habit.id) ?? { tail: Promise.resolve(), pending: 0 };
     const save = queue.tail.then(() => request("/api/habits/progress", "POST", payload));
     queue.tail = save.catch(() => undefined);
@@ -158,7 +162,7 @@ export function HabitsScreen({ dashboard }: Props) {
       </div>
     </section>
 
-    <WaterRow waterMl={data.waterMl} goalMl={data.waterGoalMl} onAdd={addWater} onMore={() => setWaterOpen(true)} />
+    <WaterRow waterMl={data.waterMl} goalMl={data.waterGoalMl} onAdd={addWater} onMore={() => setWaterOpen(true)} onSettings={() => setWaterSettingsOpen(true)} />
 
     <div role="tablist" aria-label="Filtrar" className="mt-4 grid grid-cols-4 gap-1.5">
       {FILTERS.map((item) => <button key={item.key} type="button" role="tab" aria-selected={filter === item.key} onClick={() => setFilter(item.key)} className={`flex min-h-9 items-center justify-center gap-1 rounded-full border px-1 text-xs font-semibold ${filter === item.key ? "border-ink bg-ink text-paper" : "border-line bg-white text-ink/70"}`}>{item.key !== "TODOS" ? <i className={`h-1.5 w-1.5 shrink-0 rounded-full ${GROUPS[item.key].dot}`} /> : null}{item.label}</button>)}
@@ -180,6 +184,7 @@ export function HabitsScreen({ dashboard }: Props) {
     <p className="mt-3 text-center text-xs text-ink/45">Toque no nome para ver o contexto, a nota, editar ou excluir.</p>
 
     {openHabit ? <HabitSheet habit={openHabit} onClose={() => setOpenId(null)} onSave={(progress, note) => saveProgress(openHabit, progress, note)} onEdit={() => { setEditingHabit(openHabit); setOpenId(null); setConfigOpen(true); }} onDelete={() => deleteHabit(openHabit)} /> : null}
+    {waterSettingsOpen ? <WaterSettingsSheet settings={data.water} onClose={() => setWaterSettingsOpen(false)} onSaved={() => { setWaterSettingsOpen(false); router.refresh(); }} /> : null}
     {waterOpen ? <WaterSheet waterMl={data.waterMl} onAdd={(amount) => { void addWater(amount); }} onClose={() => setWaterOpen(false)} /> : null}
   </AppShell>;
 }
@@ -204,7 +209,8 @@ function HabitRow({ habit, late, onTap, onOpen }: { habit: DbHabit; late: boolea
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <p className={`text-[15px] font-semibold leading-5 ${done ? "text-ink/45 line-through decoration-ink/30" : "text-ink"}`}>{habit.title}</p>
         {habit.description ? <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-ink/55">{habit.description}</p> : null}
-        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] leading-4 text-ink/50">
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-4 text-ink/50">
+          <Recent habit={habit} />
           <i className={`h-1.5 w-1.5 rounded-full ${GROUPS[habit.practiceGroup].dot}`} />
           {habit.cadence === "DAILY" ? (
             <>
@@ -227,16 +233,30 @@ function HabitRow({ habit, late, onTap, onOpen }: { habit: DbHabit; late: boolea
   );
 }
 
-function WaterRow({ waterMl, goalMl, onAdd, onMore }: { waterMl: number; goalMl: number; onAdd: (amount: number) => void; onMore: () => void }) {
+/** The last 7 days (or weeks) as dots, and the run when it is worth showing. */
+function Recent({ habit }: { habit: DbHabit }) {
+  const last = habit.history.slice(-7);
+  const unit = habit.cadence === "DAILY" ? (habit.streak === 1 ? "dia" : "dias") : (habit.streak === 1 ? "semana" : "semanas");
+  return (
+    <span className="mr-1 inline-flex items-center gap-1.5">
+      <span className="inline-flex gap-[3px]" aria-label={`${last.filter((value) => value === 1).length} de ${last.length} ${habit.cadence === "DAILY" ? "últimos dias" : "últimas semanas"}`}>
+        {last.map((value, index) => <i key={index} className={`h-[5px] w-[5px] rounded-full ${value === 1 ? "bg-moss" : value === 0 ? (index === last.length - 1 ? "border border-moss/50" : "bg-[#e3dccd]") : "bg-transparent"}`} />)}
+      </span>
+      {habit.streak >= (habit.cadence === "DAILY" ? 3 : 2) ? <span className="inline-flex items-center gap-0.5 font-semibold text-clay" aria-label={`sequência de ${habit.streak} ${unit}`}><Flame className="h-3 w-3" aria-hidden="true" />{habit.streak}</span> : null}
+    </span>
+  );
+}
+
+function WaterRow({ waterMl, goalMl, onAdd, onMore, onSettings }: { waterMl: number; goalMl: number; onAdd: (amount: number) => void; onMore: () => void; onSettings: () => void }) {
   const glasses = Math.max(1, Math.round(goalMl / GLASS_ML));
   const full = Math.min(glasses, Math.floor(waterMl / GLASS_ML));
   return (
     <section className="mt-2.5 flex items-center gap-3 rounded-2xl border border-line bg-white p-3 shadow-soft">
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2"><p className="text-sm font-semibold text-ink">Água <span className="font-normal text-ink/60">{(waterMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} de {(goalMl / 1000).toLocaleString("pt-BR")} L</span></p><button type="button" onClick={onMore} className="text-[11px] font-semibold text-blue-700">outro volume</button></div>
+        <div className="flex items-baseline justify-between gap-2"><p className="text-sm font-semibold text-ink">Água <span className="font-normal text-ink/60">{(waterMl / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} de {(goalMl / 1000).toLocaleString("pt-BR")} L</span></p><span className="flex items-center gap-2"><button type="button" onClick={onMore} className="text-[11px] font-semibold text-blue-700">outro volume</button><button type="button" onClick={onSettings} aria-label="Ajustar a meta de água" className="grid h-6 w-6 place-items-center rounded-md text-ink/45"><Settings2 className="h-3.5 w-3.5" /></button></span></div>
         <div className="mt-1.5 flex gap-1" aria-label={`${full} de ${glasses} copos`}>
           {Array.from({ length: glasses }, (_, index) => (
-            <button key={index} type="button" onClick={() => onAdd(GLASS_ML)} aria-label="Mais um copo de 250 ml" className="relative h-6 flex-1 overflow-hidden rounded-b-md border-[1.5px] border-t-0 border-blue-300">
+            <button key={index} type="button" onClick={() => onAdd(GLASS_ML)} aria-label="Mais um copo de 250 ml" className="relative h-6 min-w-0 flex-1 overflow-hidden rounded-b-md border-[1.5px] border-t-0 border-blue-300">
               {index < full ? <span className="absolute inset-x-0 bottom-0 h-[80%] bg-blue-400" /> : null}
             </button>
           ))}
@@ -268,6 +288,7 @@ function HabitSheet({ habit, onClose, onSave, onEdit, onDelete }: { habit: DbHab
     <Sheet title={habit.title} onClose={onClose}>
       <p className="mt-1 flex items-center gap-1.5 text-xs text-ink/55"><i className={`h-1.5 w-1.5 rounded-full ${GROUPS[habit.practiceGroup].dot}`} />{GROUPS[habit.practiceGroup].label}{schedule ? ` · ${schedule}` : ""}{habit.remind ? " · avisa no celular" : ""}</p>
       {habit.description ? <p className="mt-3 rounded-lg bg-paper p-3 text-sm leading-6 text-ink/80">{habit.description}</p> : null}
+      <History habit={habit} />
 
       {habit.cadence === "TIME_BASED" ? (
         <div className="mt-4">
@@ -294,6 +315,55 @@ function HabitSheet({ habit, onClose, onSave, onEdit, onDelete }: { habit: DbHab
         <button type="button" onClick={onEdit} className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line px-4 text-sm font-semibold text-ink"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar</button>
         <button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-rose-700"><Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir</button>
       </div>
+    </Sheet>
+  );
+}
+
+/** The run, the record and the last 3 months (or 13 weeks) in squares. */
+function History({ habit }: { habit: DbHabit }) {
+  const daily = habit.cadence === "DAILY";
+  const unit = (count: number) => (daily ? (count === 1 ? "dia" : "dias") : (count === 1 ? "semana" : "semanas"));
+  const rows = daily ? 7 : 1;
+  return (
+    <div className="mt-4">
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-xl bg-paper p-2"><p className="flex items-center justify-center gap-1 text-lg font-semibold text-ink"><Flame className="h-4 w-4 text-clay" aria-hidden="true" />{habit.streak}</p><p className="text-[11px] text-ink/55">{unit(habit.streak)} seguidos</p></div>
+        <div className="rounded-xl bg-paper p-2"><p className="text-lg font-semibold text-ink">{habit.bestStreak}</p><p className="text-[11px] text-ink/55">recorde ({unit(habit.bestStreak)})</p></div>
+        <div className="rounded-xl bg-paper p-2"><p className="text-lg font-semibold text-ink">{habit.monthRate ?? Math.round((habit.history.filter((value) => value === 1).length / Math.max(1, habit.history.filter((value) => value !== null).length)) * 100)}%</p><p className="text-[11px] text-ink/55">{daily ? "deste mês" : "das 13 semanas"}</p></div>
+      </div>
+      <div className="mt-3 grid grid-flow-col gap-[3px]" style={{ gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }} aria-label={daily ? "Últimos 3 meses" : "Últimas 13 semanas"}>
+        {habit.history.map((value, index) => <i key={index} className={`aspect-square rounded-[3px] ${value === 1 ? "bg-moss" : value === 0 ? "bg-[#ebe5d8]" : "bg-transparent"}`} />)}
+      </div>
+      <p className="mt-1.5 text-[11px] text-ink/45">{daily ? "Últimos 3 meses, um quadrado por dia (hoje no fim)." : "Últimas 13 semanas."} Uma falha isolada não quebra a sequência; duas seguidas, sim.</p>
+    </div>
+  );
+}
+
+function WaterSettingsSheet({ settings, onClose, onSaved }: { settings: HabitDashboard["water"]; onClose: () => void; onSaved: () => void }) {
+  const [weight, setWeight] = useState(settings.weightKg ? String(settings.weightKg).replace(".", ",") : "");
+  const [perKg, setPerKg] = useState(String(settings.mlPerKg ?? DEFAULT_ML_PER_KG));
+  const [fixed, setFixed] = useState(settings.fixedGoalMl ? String(settings.fixedGoalMl) : "");
+  const [useFixed, setUseFixed] = useState(Boolean(settings.fixedGoalMl));
+  const [saving, setSaving] = useState(false);
+  const weightKg = Number(weight.replace(",", "."));
+  const goal = waterGoal({ weightKg, waterMlPerKg: Number(perKg), waterGoalMl: useFixed ? Number(fixed) : null });
+  async function save() {
+    setSaving(true);
+    const response = await fetch("/api/habits/water", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weightKg, mlPerKg: Number(perKg), fixedGoalMl: useFixed ? Number(fixed) : null }) }).catch(() => null);
+    setSaving(false);
+    if (response?.ok) onSaved();
+  }
+  return (
+    <Sheet title="Meta de água" onClose={onClose}>
+      <p className="mt-1 text-sm leading-6 text-ink/65">A referência comum para adultos saudáveis é de 30 a 35 ml por kg de peso por dia. Calor, treino e suor pedem mais; se você tiver alguma condição renal ou cardíaca, siga a orientação do seu médico.</p>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <label className="block"><span className="text-sm font-semibold text-ink">Peso (kg)</span><input inputMode="decimal" value={weight} onChange={(event) => setWeight(event.target.value)} placeholder="Ex.: 108" disabled={useFixed} className="mt-1.5 min-h-11 w-full rounded-lg border border-line bg-paper px-3 text-sm disabled:opacity-45" /></label>
+        <label className="block"><span className="text-sm font-semibold text-ink">ml por kg</span><select value={perKg} onChange={(event) => setPerKg(event.target.value)} disabled={useFixed} className="mt-1.5 min-h-11 w-full rounded-lg border border-line bg-paper px-3 text-sm disabled:opacity-45">{[30, 35, 40].map((value) => <option key={value} value={value}>{value} ml/kg</option>)}</select></label>
+      </div>
+      <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink"><input type="checkbox" className="h-5 w-5 accent-[#46533b]" checked={useFixed} onChange={(event) => setUseFixed(event.target.checked)} /> Usar uma meta fixa</label>
+      {useFixed ? <input inputMode="numeric" value={fixed} onChange={(event) => setFixed(event.target.value)} placeholder="Meta em ml, ex.: 3500" className="mt-2 min-h-11 w-full rounded-lg border border-line bg-paper px-3 text-sm" /> : null}
+      <p className="mt-4 rounded-xl bg-blue-50 p-3 text-center text-sm text-blue-900">Sua meta: <strong>{(goal / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L por dia</strong> · {Math.round(goal / GLASS_ML)} copos de 250 ml</p>
+      <button type="button" onClick={save} disabled={saving} className="mt-4 min-h-12 w-full rounded-xl bg-ink text-sm font-semibold text-paper disabled:opacity-50">{saving ? "Salvando…" : "Salvar meta"}</button>
     </Sheet>
   );
 }
