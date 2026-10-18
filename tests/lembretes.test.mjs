@@ -158,3 +158,47 @@ test("the service worker is reachable without a session and shows only what the 
   const source = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   assert.ok(!/addEventListener\("fetch"/.test(source), "no page caching");
 });
+
+test("a habit with its own hour is reminded at that hour, only while not done, once", async () => {
+  const { db, call, worker, env, today } = await setup();
+  const phone = fakePhone();
+  await call("/api/lembretes/inscricao", phone.subscription);
+  await (await call("/configuracoes")).text();
+  db.sqlite.prepare('UPDATE "Reminder" SET enabled = 0').run(); // only the habit's own reminder here
+  const now = saoPauloNow();
+  for (const [id, title] of [["hab_varrer", "Varrer por dentro"], ["hab_ordenar", "Ordenar o ambiente"]]) {
+    const saved = await call.patch(`/api/habits/template/${id}`, { title, cadence: "DAILY", targetCount: 1, practiceGroup: "HABIT", dayPeriod: "MANHA", scheduledTime: now, remind: true, description: "Contexto curto" });
+    assert.equal(saved.status, 200);
+  }
+  const row = db.sqlite.prepare('SELECT dayPeriod, scheduledTime, remind, description FROM "HabitTemplate" WHERE id = ?').get("hab_varrer");
+  assert.deepEqual({ ...row }, { dayPeriod: "MANHA", scheduledTime: now, remind: 1, description: "Contexto curto" });
+  // "Ordenar" is already done today, so only "Varrer" is reminded.
+  await call("/api/habits/progress", { habitId: "hab_ordenar", dateKey: today, count: 1 });
+
+  const sent = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { sent.push(phone.decrypt(Buffer.from(init.body))); return new Response(null, { status: 201 }); };
+  try {
+    await runCron(worker, env);
+    assert.deepEqual(sent.map((message) => message.body), ["Hora de: Varrer por dentro"]);
+    await runCron(worker, env);
+    assert.equal(sent.length, 1, "once a day");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  // A reminder needs a time; bad values are dropped.
+  await call.patch("/api/habits/template/hab_varrer", { title: "Varrer por dentro", cadence: "DAILY", targetCount: 1, dayPeriod: "MADRUGADA", scheduledTime: "7h", remind: true });
+  assert.deepEqual({ ...db.sqlite.prepare('SELECT dayPeriod, scheduledTime, remind FROM "HabitTemplate" WHERE id = ?').get("hab_varrer") }, { dayPeriod: null, scheduledTime: null, remind: 0 });
+  const html = await (await call("/habitos")).text();
+  assert.ok(html.includes("Varrer por dentro"));
+});
+
+test("water can be undone, never below zero for the day", async () => {
+  const { db, call, today } = await setup();
+  await call("/api/habits/water", { amountMl: 250, dateKey: today });
+  await call("/api/habits/water", { amountMl: -250, dateKey: today });
+  await call("/api/habits/water", { amountMl: -250, dateKey: today });
+  assert.equal(db.sqlite.prepare('SELECT COALESCE(SUM(amountMl), 0) AS total FROM "WaterLog" WHERE date = ?').get(today).total, 0);
+  assert.equal((await call("/api/habits/water", { amountMl: 0, dateKey: today })).status, 400);
+});

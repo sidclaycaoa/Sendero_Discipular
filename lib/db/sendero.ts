@@ -128,7 +128,22 @@ export type DbHabit = {
   note: string;
   practiceGroup: "ED" | "PSYCHOLOGY" | "HABIT";
   practiceTool: PracticeToolKey | null;
+  dayPeriod: DayPeriod | null;
+  scheduledTime: string | null;
+  remind: boolean;
+  /** ISO time of today's last mark, when there is one. */
+  doneAt: string | null;
 };
+
+export type DayPeriod = "MANHA" | "TARDE" | "NOITE";
+export type HabitSchedule = { dayPeriod: DayPeriod | null; scheduledTime: string | null; remind: boolean };
+
+/** Accepts only known periods and HH:MM times; a reminder needs a time. */
+export function cleanHabitSchedule(input: { dayPeriod?: unknown; scheduledTime?: unknown; remind?: unknown }): HabitSchedule {
+  const scheduledTime = typeof input.scheduledTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(input.scheduledTime) ? input.scheduledTime : null;
+  const dayPeriod = input.dayPeriod === "MANHA" || input.dayPeriod === "TARDE" || input.dayPeriod === "NOITE" ? input.dayPeriod : null;
+  return { dayPeriod, scheduledTime, remind: Boolean(input.remind) && scheduledTime !== null };
+}
 
 export type HabitDashboard = {
   dateKey: string;
@@ -1036,8 +1051,8 @@ export async function getDiaryEntry(userId: string, dateKey: string) {
   return { id: entry.id, answers: [first, rest.join("\n\n"), rotating.thirdAnswer ?? "", rotating.tonicAnswer ?? ""] };
 }
 
-export async function createHabitTemplate({ userId, title, cadence, targetCount, description, practiceGroup = "HABIT", practiceTool = null }: {
-  userId: string; title: string; cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "TIME_BASED"; targetCount: number; description?: string; practiceGroup?: PracticeGroupCode; practiceTool?: PracticeToolKey | null;
+export async function createHabitTemplate({ userId, title, cadence, targetCount, description, practiceGroup = "HABIT", practiceTool = null, schedule = { dayPeriod: null, scheduledTime: null, remind: false } }: {
+  userId: string; title: string; cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "TIME_BASED"; targetCount: number; description?: string; practiceGroup?: PracticeGroupCode; practiceTool?: PracticeToolKey | null; schedule?: HabitSchedule;
 }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
@@ -1046,9 +1061,9 @@ export async function createHabitTemplate({ userId, title, cadence, targetCount,
   const id = newId("habit");
   const now = new Date().toISOString();
   await db.prepare(`
-    INSERT INTO "HabitTemplate" (id, userId, title, description, categoryId, cadence, targetCount, targetValue, isActive, practiceTool, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?)
-  `).bind(id, userId, title, description || null, categoryId, cadence, targetCount, practiceTool, now, now).run();
+    INSERT INTO "HabitTemplate" (id, userId, title, description, categoryId, cadence, targetCount, targetValue, isActive, practiceTool, dayPeriod, scheduledTime, remind, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?, ?, ?, ?)
+  `).bind(id, userId, title, description || null, categoryId, cadence, targetCount, practiceTool, schedule.dayPeriod, schedule.scheduledTime, schedule.remind ? 1 : 0, now, now).run();
   await db.prepare('INSERT INTO "HabitPracticeGroup" (habitId, groupId, createdAt, updatedAt) VALUES (?, ?, ?, ?)')
     .bind(id, practiceGroupId(userId, practiceGroup), now, now).run();
   return { id };
@@ -1069,9 +1084,9 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
       LEFT JOIN "PracticeGroup" pg ON pg.id = hpg.groupId
       WHERE ht.userId = ? AND ht.isActive = 1
       ORDER BY pg.sequence ASC, CASE ht.cadence WHEN 'DAILY' THEN 1 WHEN 'WEEKLY' THEN 2 ELSE 3 END, ht.createdAt ASC
-    `).bind(userId).all<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; categoryName: string; practiceGroup: PracticeGroupCode | null; practiceTool: string | null }>(),
-    db.prepare('SELECT habitId, date, count, minutes, note FROM "HabitLog" WHERE userId = ? AND date <= ?')
-      .bind(userId, dateKey).all<{ habitId: string; date: string; count: number; minutes: number | null; note: string | null }>(),
+    `).bind(userId).all<{ id: string; title: string; description: string | null; cadence: string; targetCount: number; categoryName: string; practiceGroup: PracticeGroupCode | null; practiceTool: string | null; dayPeriod: string | null; scheduledTime: string | null; remind: number | null }>(),
+    db.prepare('SELECT habitId, date, count, minutes, note, createdAt FROM "HabitLog" WHERE userId = ? AND date <= ?')
+      .bind(userId, dateKey).all<{ habitId: string; date: string; count: number; minutes: number | null; note: string | null; createdAt: string }>(),
     db.prepare('SELECT COALESCE(SUM(amountMl), 0) AS total FROM "WaterLog" WHERE userId = ? AND date = ?')
       .bind(userId, dateKey).first<{ total: number }>(),
   ]);
@@ -1098,6 +1113,8 @@ export async function getHabitDashboard(userId: string, dateKey = getSaoPauloDat
       note: todayLog?.note ?? "",
       practiceGroup: template.practiceGroup ?? "HABIT",
       practiceTool: practiceToolKey(template.practiceTool),
+      ...cleanHabitSchedule(template),
+      doneAt: todayLog?.createdAt ?? null,
     };
   });
 
@@ -1131,24 +1148,31 @@ export async function saveHabitProgress({ userId, habitId, dateKey, count, minut
   ]);
 }
 
+/** Adds water to the day; a negative amount undoes, never below zero for the day. */
 export async function addWaterLog(userId: string, dateKey: string, amountMl: number) {
   await ensureSenderoSeeded();
-  const amount = Math.max(0, Math.round(amountMl));
+  const db = getSenderoDb();
+  let amount = Math.round(amountMl);
+  if (amount < 0) {
+    const today = await db.prepare('SELECT COALESCE(SUM(amountMl), 0) AS total FROM "WaterLog" WHERE userId = ? AND date = ?').bind(userId, dateKey).first<{ total: number }>();
+    amount = Math.max(amount, -Number(today?.total ?? 0));
+  }
   if (!amount) return;
-  await getSenderoDb().prepare('INSERT INTO "WaterLog" (id, userId, date, amountMl, createdAt) VALUES (?, ?, ?, ?, ?)')
+  await db.prepare('INSERT INTO "WaterLog" (id, userId, date, amountMl, createdAt) VALUES (?, ?, ?, ?, ?)')
     .bind(newId("water"), userId, dateKey, amount, new Date().toISOString()).run();
 }
 
-export async function updateHabitTemplate({ userId, habitId, title, description, cadence, targetCount, practiceGroup, practiceTool = null }: {
-  userId: string; habitId: string; title: string; description?: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; practiceGroup?: PracticeGroupCode; practiceTool?: PracticeToolKey | null;
+export async function updateHabitTemplate({ userId, habitId, title, description, cadence, targetCount, practiceGroup, practiceTool = null, schedule = { dayPeriod: null, scheduledTime: null, remind: false } }: {
+  userId: string; habitId: string; title: string; description?: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; practiceGroup?: PracticeGroupCode; practiceTool?: PracticeToolKey | null; schedule?: HabitSchedule;
 }) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   await ensurePracticeGroups(userId);
   await db.prepare(`
-    UPDATE "HabitTemplate" SET title = ?, description = ?, cadence = ?, targetCount = ?, practiceTool = ?, updatedAt = ?
+    UPDATE "HabitTemplate" SET title = ?, description = ?, cadence = ?, targetCount = ?, practiceTool = ?, dayPeriod = ?, scheduledTime = ?, remind = ?,
+      lastRemindedDate = CASE WHEN scheduledTime IS ? THEN lastRemindedDate ELSE NULL END, updatedAt = ?
     WHERE id = ? AND userId = ? AND isActive = 1
-  `).bind(title.trim(), description?.trim() || null, cadence, Math.max(1, Math.round(targetCount)), practiceTool, new Date().toISOString(), habitId, userId).run();
+  `).bind(title.trim(), description?.trim() || null, cadence, Math.max(1, Math.round(targetCount)), practiceTool, schedule.dayPeriod, schedule.scheduledTime, schedule.remind ? 1 : 0, schedule.scheduledTime, new Date().toISOString(), habitId, userId).run();
   if (practiceGroup) await db.prepare(`
     INSERT INTO "HabitPracticeGroup" (habitId, groupId, createdAt, updatedAt) VALUES (?, ?, ?, ?)
     ON CONFLICT(habitId) DO UPDATE SET groupId = excluded.groupId, updatedAt = excluded.updatedAt
