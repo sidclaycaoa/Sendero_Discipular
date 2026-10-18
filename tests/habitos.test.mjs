@@ -60,7 +60,7 @@ test("a run survives one missed day, ends after two, and today never counts as m
   for (const back of [10, 9, 8, 7, 6]) log(db, "hab_varrer", shift(today, -back), { count: 1 });
   const html = await (await call("/habitos")).text();
   const ordenar = html.slice(html.indexOf("Ordenar o ambiente"));
-  assert.match(ordenar.slice(0, 3000), /sequência de 7 dias/);
+  assert.match(ordenar.slice(0, 3000), /sequência de 7 dias, chama laranja/); // a full week turns the flame orange
   const varrer = html.slice(html.indexOf("Varrer por dentro"));
   assert.doesNotMatch(varrer.slice(0, 1500), /sequência de/);
 });
