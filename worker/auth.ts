@@ -221,16 +221,44 @@ function loginForm(message = "") {
 </form>`;
 }
 
+/**
+ * The PIN has its own keypad: the phone's keyboard sometimes refuses to open
+ * in apps installed on the iPhone home screen, which locked the user out.
+ * A physical keyboard still works (digits, backspace, enter).
+ */
 function pinForm(message = "") {
-  return `<form method="post">
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "apagar", "0", "ok"];
+  return `<form method="post" id="pin-form">
   <h1>Sendero bloqueado</h1>
   <p>Digite seu PIN para continuar.</p>
   <label for="pin">PIN</label>
-  <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" required autofocus>
-  <button type="submit">Desbloquear</button>
+  <input id="pin" name="pin" type="password" inputmode="none" readonly autocomplete="off" required>
+  <div class="pad" role="group" aria-label="Teclado do PIN">
+    ${keys.map((key) => key === "apagar" ? `<button type="button" data-key="apagar" aria-label="Apagar">⌫</button>`
+      : key === "ok" ? `<button type="submit" class="ok" aria-label="Desbloquear">OK</button>`
+      : `<button type="button" data-key="${key}">${key}</button>`).join("")}
+  </div>
   ${message ? `<p class="erro" role="alert">${message}</p>` : ""}
   <p class="alt"><a href="/sair">Entrar com a senha</a></p>
-</form>`;
+</form>
+<script>
+  (function () {
+    var form = document.getElementById("pin-form"), input = document.getElementById("pin");
+    function press(key) {
+      if (key === "apagar") input.value = input.value.slice(0, -1);
+      else if (/^[0-9]$/.test(key) && input.value.length < 12) input.value += key;
+    }
+    form.addEventListener("click", function (event) {
+      var button = event.target.closest("button[data-key]");
+      if (button) press(button.getAttribute("data-key"));
+    });
+    document.addEventListener("keydown", function (event) {
+      if (/^[0-9]$/.test(event.key)) press(event.key);
+      else if (event.key === "Backspace") press("apagar");
+      else if (event.key === "Enter" && input.value) form.requestSubmit();
+    });
+  })();
+</script>`;
 }
 
 function gatePage(form: string, status = 200, cookies: string[] = []) {
@@ -246,7 +274,7 @@ function gatePage(form: string, status = 200, cookies: string[] = []) {
 <style>
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f7f4ed; color: #1f2528;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  form { width: min(100% - 32px, 360px); background: #fff; border: 1px solid #ded7ca; border-radius: 12px; padding: 24px;
+  form { box-sizing: border-box; width: min(100% - 32px, 360px); background: #fff; border: 1px solid #ded7ca; border-radius: 12px; padding: 24px;
     box-shadow: 0 12px 30px rgba(31, 37, 40, 0.08); }
   h1 { margin: 0 0 4px; font-size: 22px; }
   p { margin: 0 0 20px; color: #46533b; font-size: 14px; }
@@ -255,6 +283,11 @@ function gatePage(form: string, status = 200, cookies: string[] = []) {
   button { width: 100%; margin-top: 16px; padding: 12px; font-size: 16px; font-weight: 600; color: #fff; background: #66704f;
     border: 0; border-radius: 8px; }
   .erro { margin: 12px 0 0; color: #b85d3b; font-weight: 600; }
+  input[readonly] { text-align: center; letter-spacing: 6px; font-size: 22px; background: #f7f4ed; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+  .pad button { margin: 0; min-height: 56px; font-size: 22px; font-weight: 600; color: #1f2528; background: #f7f4ed; border: 1px solid #ded7ca; border-radius: 12px; }
+  .pad button:active { background: #ded7ca; }
+  .pad .ok { color: #fff; background: #66704f; border-color: #66704f; font-size: 18px; }
   .alt { margin: 16px 0 0; text-align: center; }
   .alt a { color: #46533b; }
 </style>

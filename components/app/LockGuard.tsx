@@ -97,14 +97,24 @@ function PinForm({ onUnlocked }: { onUnlocked: () => void }) {
     }
   }
 
+  // Own keypad: the phone's keyboard sometimes refuses to open in apps installed on the iPhone home screen.
+  const press = (key: string) => setPin((value) => (key === "apagar" ? value.slice(0, -1) : value.length < 12 ? value + key : value));
+
   return (
     <form onSubmit={submit} className="w-full max-w-[360px] rounded-xl border border-line bg-white p-6 shadow-soft">
       <LockKeyhole className="h-6 w-6 text-olive" aria-hidden="true" />
       <h1 className="mt-3 text-xl font-semibold text-ink">Sendero bloqueado</h1>
       <p className="mt-1 text-sm text-moss">Digite seu PIN para continuar.</p>
       <label htmlFor="sendero-pin" className="mt-5 block text-sm font-semibold text-ink">PIN</label>
-      <input id="sendero-pin" type="password" inputMode="numeric" autoComplete="off" autoFocus required value={pin} onChange={(event) => setPin(event.target.value)} className="mt-1.5 w-full rounded-lg border border-line px-3 py-3 text-base" />
-      <button type="submit" disabled={sending || !pin} className="mt-4 w-full rounded-lg bg-olive py-3 text-base font-semibold text-white disabled:opacity-60">{sending ? "Verificando…" : "Desbloquear"}</button>
+      <input id="sendero-pin" type="password" inputMode="none" readOnly autoComplete="off" value={pin}
+        onKeyDown={(event) => { if (/^[0-9]$/.test(event.key)) press(event.key); else if (event.key === "Backspace") press("apagar"); }}
+        className="mt-1.5 w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-center text-2xl tracking-[0.4em]" />
+      <div className="mt-4 grid grid-cols-3 gap-2.5" role="group" aria-label="Teclado do PIN">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((key) => <button key={key} type="button" onClick={() => press(key)} className="min-h-14 rounded-xl border border-line bg-paper text-2xl font-semibold text-ink active:bg-line">{key}</button>)}
+        <button type="button" aria-label="Apagar" onClick={() => press("apagar")} className="min-h-14 rounded-xl border border-line bg-paper text-xl text-ink active:bg-line">⌫</button>
+        <button type="button" onClick={() => press("0")} className="min-h-14 rounded-xl border border-line bg-paper text-2xl font-semibold text-ink active:bg-line">0</button>
+        <button type="submit" aria-label="Desbloquear" disabled={sending || !pin} className="min-h-14 rounded-xl bg-olive text-lg font-semibold text-white disabled:opacity-60">{sending ? "…" : "OK"}</button>
+      </div>
       {error ? <p role="alert" className="mt-3 text-sm font-semibold text-clay">{error}</p> : null}
       <a href="/sair" className="mt-4 block text-center text-sm text-moss underline">Entrar com a senha</a>
     </form>

@@ -14,7 +14,7 @@ export const REMINDER_KINDS: Record<ReminderKind, { label: string; detail: strin
   REFLEXAO: { label: "Reflexões do dia", detail: "Só avisa se ainda houver reflexão de hoje por fazer.", defaultTime: "07:00", url: "/refletir" },
   PRATICAS: { label: "Práticas diárias", detail: "Só avisa se faltar alguma prática diária.", defaultTime: "18:00", url: "/habitos" },
   DIARIO: { label: "Diário", detail: "Só avisa se o Diário de hoje estiver em branco.", defaultTime: "21:30", url: "/diario" },
-  AGENDA: { label: "Agenda", detail: "Tarefas com hora, na hora; compromissos, 15 min antes.", defaultTime: "00:00", url: "/tarefas", timed: false },
+  AGENDA: { label: "Agenda e Escola", detail: "Tarefas com hora, na hora; compromissos, 15 min antes; leituras de aula perto do prazo (9h); véspera da aula (20h).", defaultTime: "00:00", url: "/tarefas", timed: false },
 };
 
 // A reminder missed by more than this (e.g. a skipped cron run) is dropped instead of arriving late.
@@ -164,7 +164,7 @@ export async function sendDueReminders(now = new Date()) {
   if (reminders.find((reminder) => reminder.kind === "AGENDA")?.enabled) {
     for (const notice of await dueAgendaNotices(user.id, dateKey, minutes, LATE_LIMIT_MIN)) {
       if (!(await claimAgendaNotice(user.id, notice.key))) continue;
-      await deliver(user.id, { title: "Sendero · Agenda", body: notice.body, url: "/tarefas", tag: `sendero-${notice.key.toLowerCase()}` });
+      await deliver(user.id, { title: "Sendero · Agenda", body: notice.body, url: notice.url, tag: `sendero-${notice.key.toLowerCase()}` });
       sent.push(notice.key);
     }
   }

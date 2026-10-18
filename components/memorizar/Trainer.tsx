@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Eye, Pencil, RotateCcw, SkipForward, X } from "lucide-react";
@@ -8,6 +8,7 @@ import { Card } from "@/components/app/AppShell";
 import { TextForm } from "@/components/memorizar/TextForm";
 import type { MemorizationText } from "@/lib/db/memorizacao";
 import { initials, wordLengths } from "@/lib/memorize-text";
+import { holdScreen } from "@/lib/screen-awake";
 
 type Mode = "ler" | "iniciais" | "decor";
 const MODES: Array<{ key: Mode; label: string }> = [{ key: "ler", label: "Ler" }, { key: "iniciais", label: "Iniciais" }, { key: "decor", label: "De cor" }];
@@ -29,6 +30,11 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
   const [editing, setEditing] = useState(false);
   const [finish, setFinish] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  // The screen stays on while practising; it is asked on the first tap (the phone only allows it then).
+  const letScreenSleep = useRef<(() => void) | null>(null);
+  const keepAwake = () => { letScreenSleep.current ??= holdScreen(); };
+  useEffect(() => () => letScreenSleep.current?.(), []);
 
   const total = text.lines.length;
   const complete = known >= total;
@@ -88,7 +94,7 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
 
   const hidden = mode === "decor" && !revealed;
   return (
-    <>
+    <div onPointerDownCapture={keepAwake}>
       <div className="mb-4 flex items-center justify-between">
         <Link prefetch={false} href="/memorizar" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-ink/70"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Textos</Link>
         <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-ink/60"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar</button>
@@ -166,7 +172,7 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
           <button type="button" onClick={finishToday} disabled={finish === "saving"} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl border border-line bg-white text-sm font-semibold text-ink disabled:opacity-50">{finish === "saving" ? "Registrando…" : finish === "error" ? "Tentar de novo: concluir o treino de hoje" : "Concluir o treino de hoje"}</button>
         )
       ) : null}
-    </>
+    </div>
   );
 }
 
