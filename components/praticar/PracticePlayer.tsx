@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Music2, Play, Square } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
 import { asanaOfDay, type PlayableTool } from "@/lib/practice";
+import { holdScreen } from "@/lib/screen-awake";
 
 type PracticeHabit = { id: string; title: string; description: string; cadence: "DAILY" | "WEEKLY" | "TIME_BASED"; targetCount: number; todayCount: number; note: string; dateKey: string };
 type Phase = "ready" | "running" | "done";
@@ -27,7 +28,7 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pl
   const startedAt = useRef(0);
   const bellsRung = useRef(0);
   const audio = useRef<AudioContext | null>(null);
-  const wakeLock = useRef<{ release: () => Promise<void> } | null>(null);
+  const letScreenSleep = useRef<(() => void) | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const player = useRef<HTMLAudioElement>(null);
   const duration = tool.kind === "music" ? null : tool.durationSec;
@@ -52,6 +53,13 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pl
   }, [phase]);
 
   useEffect(() => () => { void release(); }, []);
+
+  // Coming back to the app (after a call, a notification…): wake the sound up again.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") void audio.current?.resume().catch(() => undefined); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   function tone(frequency: number, at: number, length: number) {
     const context = audio.current;
@@ -80,7 +88,10 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pl
   }
 
   async function start() {
-    // Things that need the tap itself come first, before anything is awaited.
+    // Things that need the tap itself come first, before anything is awaited:
+    // the screen must not sleep, or the timer stops and the bell never rings.
+    letScreenSleep.current?.();
+    letScreenSleep.current = holdScreen();
     if (fullScreen) {
       void document.documentElement.requestFullscreen?.({ navigationUI: "hide" })
         .then(() => (screen.orientation as unknown as { lock?: (orientation: string) => Promise<void> }).lock?.(tool.kind === "tratak" ? "landscape" : "portrait"))
@@ -94,9 +105,6 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pl
     const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     audio.current ??= AudioCtor ? new AudioCtor() : null;
     await audio.current?.resume().catch(() => undefined);
-    try {
-      wakeLock.current = await (navigator as unknown as { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request("screen") ?? null;
-    } catch { wakeLock.current = null; }
     bellsRung.current = 0;
     startedAt.current = Date.now();
     setElapsed(0);
@@ -105,8 +113,8 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pl
 
   async function release() {
     player.current?.pause();
-    await wakeLock.current?.release().catch(() => undefined);
-    wakeLock.current = null;
+    letScreenSleep.current?.();
+    letScreenSleep.current = null;
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
     (screen.orientation as unknown as { unlock?: () => void }).unlock?.();
   }
