@@ -12,7 +12,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   4. o **usuário faz o merge**;
   5. o Cloudflare Workers Builds publica sozinho a partir do `main`.
 - **Banco D1 `sendero-discipular`** (id `8eecf873-d8f3-44ff-b72c-74d9d573dcd1`):
-  - toda mudança é um novo arquivo em `migrations/` (hoje até `0018_jornada.sql`);
+  - toda mudança é um novo arquivo em `migrations/` (hoje até `0019_journey_start.sql`);
   - a migração é aplicada em produção pelo MCP da Cloudflare (`d1_database_query`), e o nome é registrado em `d1_migrations`;
   - nunca apagar dados sem perguntar.
 - **Custo zero:**
@@ -36,7 +36,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   - cartão da Jornada (trabalho do mês e etapa) e, no dia em que se chega a um marco, uma linha "Hoje, na jornada";
   - cards Escola e Mestre.
 - **Jornada** `/jornada` (`components/jornada/JornadaScreen.tsx`, `lib/db/jornada.ts`, `lib/jornada-shared.ts`), no lugar do antigo "karma":
-  - **um trabalho de um mito por mês**, em ordem fixa, aberto sozinho na primeira visita do mês (o primeiro, o Leão de Nemeia, começa no dia da primeira visita e vai até o fim daquele mês);
+  - **um trabalho de um mito por mês**, em ordem fixa, aberto sozinho na primeira visita do mês, sempre com o mês inteiro. A jornada começa em **1º/11/2026** (`User.journeyStart`, escolha do usuário); antes disso a tela é um **prólogo**: mostra o Leão de Nemeia, os doze trabalhos e os mitos que virão, só para leitura, e o Início diz "Jornada · prólogo";
   - o mês atravessa as **7 etapas do herói** (Campbell), divididas pelos dias: o chamado (o monstro), o mestre (o conselho), o limiar, as provas, o abismo (a queda e a volta), o elixir e o retorno;
   - os textos são do usuário (`JourneyCycle`); quem fecha o trabalho é ele: "cumprido" ou "o monstro ainda vive" (o trabalho se repete no mês seguinte, se o mês novo ainda estiver em branco);
   - armas = práticas diárias da ED; quedas = 2+ dias sem prática da ED; os números aparecem só como "testemunhas";

@@ -7,7 +7,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
 import { Sheet } from "@/components/app/Sheet";
 import type { JourneyCycle, JourneyData, JourneyLabor, JourneyMyth } from "@/lib/db/jornada";
-import { FIELD_LABELS, STAGES, roman, type CycleField } from "@/lib/jornada-shared";
+import { FIELD_LABELS, STAGES, longDate, roman, type CycleField } from "@/lib/jornada-shared";
 
 type Open =
   | { kind: "text"; cycle: JourneyCycle; field: CycleField }
@@ -22,11 +22,9 @@ type Open =
  */
 export function JornadaScreen({ data, todayKey }: { data: JourneyData; todayKey: string }) {
   const [open, setOpen] = useState<Open | null>(null);
-  const { cycle, labor, myth, stage } = data;
-  const current = STAGES[stage.index];
-  const closing = stage.index === STAGES.length - 1 && !cycle.outcome;
-  const written = (Object.keys(FIELD_LABELS) as CycleField[]).filter((field) => cycle[field]);
-  const futureMyths = data.myths.filter((item) => item.position > myth.position);
+  const { labor, myth } = data;
+  const futureMyths = data.myths.filter((item) => item.position > (data.prelude !== null ? 1 : myth.position));
+  const stageName = data.prelude !== null ? null : STAGES[data.stage.index].name;
 
   return (
     <div className="space-y-4">
@@ -44,71 +42,18 @@ export function JornadaScreen({ data, todayKey }: { data: JourneyData; todayKey:
         <p className="mt-4 text-sm leading-6 text-[#d9cbbd]">{labor.story}</p>
         <p className="mt-3 text-sm leading-6 text-[#f6ece2]"><b className="font-semibold text-terra">O que simboliza:</b> {labor.symbol}</p>
         <p className="mt-3 border-t border-[#3a322c] pt-3 text-sm leading-6 text-[#f6ece2]"><b className="font-semibold text-terra">A pergunta do mês:</b> {labor.question}</p>
-        <button type="button" onClick={() => setOpen({ kind: "text", cycle, field: "monster" })} className="mt-4 block w-full rounded-xl border border-[#4a3f37] bg-[#2c2622] p-3 text-left">
-          <span className="block text-[11px] font-bold uppercase tracking-[0.06em] text-[#b7a493]">O meu monstro</span>
-          <span className={`mt-1 block text-[15px] ${cycle.monster ? "italic text-[#fbf3ea]" : "text-[#b7a493]"}`}>{cycle.monster ? `“${cycle.monster}”` : "Toque para dar nome ao monstro deste mês"}</span>
-        </button>
+        {data.prelude !== null ? (
+          <p className="mt-4 rounded-xl border border-[#4a3f37] bg-[#2c2622] p-3 text-sm leading-6 text-[#f1e6da]"><span className="block text-[11px] font-bold uppercase tracking-[0.06em] text-terra">Prólogo · começa em {longDate(data.prelude)}</span>Até lá, leia o primeiro trabalho com calma e pense: qual é o seu leão?</p>
+        ) : (
+          <button type="button" onClick={() => setOpen({ kind: "text", cycle: data.cycle, field: "monster" })} className="mt-4 block w-full rounded-xl border border-[#4a3f37] bg-[#2c2622] p-3 text-left">
+            <span className="block text-[11px] font-bold uppercase tracking-[0.06em] text-[#b7a493]">O meu monstro</span>
+            <span className={`mt-1 block text-[15px] ${data.cycle.monster ? "italic text-[#fbf3ea]" : "text-[#b7a493]"}`}>{data.cycle.monster ? `“${data.cycle.monster}”` : "Toque para dar nome ao monstro deste mês"}</span>
+          </button>
+        )}
         <Meander className="bottom-0" />
       </section>
 
-      {data.pendingReturns.map(({ cycle: past, labor: pastLabor }) => (
-        <button key={past.id} type="button" onClick={() => setOpen({ kind: "close", cycle: past, labor: pastLabor })} className="flex w-full items-center gap-3 rounded-xl border border-[#e6d6c4] bg-[#fbf5ee] p-4 text-left text-[#4a3424]">
-          <span className="min-w-0 flex-1 text-sm"><b className="block">Retorno pendente: {pastLabor.title}</b>Feche o trabalho de {monthName(past.month)}.</span>
-          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-        </button>
-      ))}
-
-      <Card>
-        <h2 className="text-lg font-semibold text-ink">A travessia</h2>
-        <div className="mt-3 grid grid-cols-[132px_minmax(0,1fr)] items-center gap-3">
-          <Wheel index={stage.index} label={current.name} detail={stage.ended ? "mês encerrado" : `dia ${stage.day} de ${stage.days}`} />
-          <ol className="space-y-1">
-            {STAGES.map((item, index) => (
-              <li key={item.name} className={`grid grid-cols-[18px_minmax(0,1fr)] items-baseline gap-1.5 text-[13px] ${index === stage.index ? "font-semibold text-ink" : index < stage.index ? "text-ink/65" : "text-ink/40"}`}>
-                <b className={`font-myth text-sm ${index === stage.index ? "text-terra" : ""}`}>{roman(index + 1)}</b>
-                <span>{item.name}{index < stage.index ? " ✓" : ""}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-        <div className="mt-3 border-t border-[#f0ebe1] pt-3">
-          <p className="text-sm leading-6 text-ink"><strong className="text-bronze">{current.name}.</strong> {current.prompt}</p>
-          {current.field ? <TextButton text={cycle[current.field]} label={current.fieldLabel!} onClick={() => setOpen({ kind: "text", cycle, field: current.field! })} /> : null}
-          {closing ? <button type="button" onClick={() => setOpen({ kind: "close", cycle, labor })} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-vase text-sm font-semibold text-[#fbf3ea]">Fechar o trabalho</button> : null}
-          {cycle.outcome ? <p className="mt-3 rounded-xl bg-paper p-3 text-sm text-ink/80">{cycle.outcome === "CUMPRIDO" ? "Trabalho cumprido e gravado no caminho." : "O monstro ainda vive: este trabalho volta no próximo mês."}</p> : null}
-        </div>
-      </Card>
-
-      {data.weapons.length ? (
-        <Card>
-          <h2 className="text-lg font-semibold text-ink">As armas</h2>
-          <p className="mt-1 text-xs text-ink/60">As suas práticas diárias da ED. Últimos 7 dias.</p>
-          <div className="mt-3 space-y-2.5">
-            {data.weapons.map((weapon) => (
-              <div key={weapon.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="flex min-w-0 items-center gap-2 font-semibold"><span className="h-2 w-2 shrink-0 rounded-full bg-[#b23a2c]" /><span className="truncate">{weapon.title}</span></span>
-                <span className="flex shrink-0 gap-1" aria-label={`${weapon.days.filter(Boolean).length} de 7 dias`}>
-                  {weapon.days.map((done, index) => <i key={index} className={`block h-2.5 w-2.5 rounded-full ${done ? "bg-[#b23a2c]" : "bg-[#efeae0]"}`} />)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ) : null}
-
-      <Card>
-        <h2 className="text-lg font-semibold text-ink">O que já aconteceu</h2>
-        <ol className="mt-3 space-y-3 border-l-2 border-[#f3e2d6] pl-4">
-          <Mark when={`${shortDate(cycle.startDate)} · O chamado`}>Começou {labor.title}.</Mark>
-          {written.map((field) => (
-            <Mark key={field} when={FIELD_LABELS[field]} onClick={() => setOpen({ kind: "text", cycle, field })}><em className="not-italic text-ink/80">“{cycle[field]}”</em></Mark>
-          ))}
-          {data.falls.map((fall) => (
-            <Mark key={fall.from} when={`${shortDate(fall.from)} · Uma descida`} dark>{`Sem práticas da ED de ${shortDate(fall.from)} a ${shortDate(fall.to)}.`} {fall.back ? <b className="font-semibold text-emerald-800">Voltou em {shortDate(fall.back)}.</b> : <b className="font-semibold text-terra">A volta ainda está por vir.</b>}</Mark>
-          ))}
-        </ol>
-        <p className="mt-4 border-t border-[#f0ebe1] pt-3 text-xs leading-5 text-ink/60">Testemunhas até aqui: {data.witness.practiceDays} de {data.witness.days} dias com prática da ED · {data.witness.diaries} Diário{data.witness.diaries === 1 ? "" : "s"} · {data.witness.reflections} reflex{data.witness.reflections === 1 ? "ão" : "ões"}. Elas não fecham o trabalho: quem decide é você.</p>
-      </Card>
+      {data.prelude === null ? <CurrentCycle data={data} setOpen={setOpen} /> : null}
 
       <Card>
         <p className="text-xs font-semibold uppercase tracking-wide text-bronze">{myth.hero} · {myth.tradition}</p>
@@ -121,7 +66,7 @@ export function JornadaScreen({ data, todayKey }: { data: JourneyData; todayKey:
               <Medal number={station.labor.position} state={station.state} />
               <span className="min-w-0">
                 <strong className={`block font-myth text-lg font-semibold leading-tight ${station.state === "ahead" ? "text-ink/60" : "text-ink"}`}>{station.labor.title}</strong>
-                <small className={`mt-0.5 block text-[12.5px] leading-snug ${station.state === "now" ? "font-semibold text-bronze" : "text-ink/60"}`}>{stationNote(station, current.name)}</small>
+                <small className={`mt-0.5 block text-[12.5px] leading-snug ${station.state === "now" ? "font-semibold text-bronze" : "text-ink/60"}`}>{stationNote(station, stageName, data.prelude)}</small>
               </span>
             </button>
           ))}
@@ -179,6 +124,76 @@ export function JornadaScreen({ data, todayKey }: { data: JourneyData; todayKey:
         </Sheet>
       ) : null}
     </div>
+  );
+}
+
+/** The month being lived: returns still to close, the wheel, the weapons and what has happened. */
+function CurrentCycle({ data, setOpen }: { data: Extract<JourneyData, { prelude: null }>; setOpen: (open: Open) => void }) {
+  const { cycle, labor, stage } = data;
+  const current = STAGES[stage.index];
+  const closing = stage.index === STAGES.length - 1 && !cycle.outcome;
+  const written = (Object.keys(FIELD_LABELS) as CycleField[]).filter((field) => cycle[field]);
+  return (
+    <>
+        {data.pendingReturns.map(({ cycle: past, labor: pastLabor }) => (
+          <button key={past.id} type="button" onClick={() => setOpen({ kind: "close", cycle: past, labor: pastLabor })} className="flex w-full items-center gap-3 rounded-xl border border-[#e6d6c4] bg-[#fbf5ee] p-4 text-left text-[#4a3424]">
+            <span className="min-w-0 flex-1 text-sm"><b className="block">Retorno pendente: {pastLabor.title}</b>Feche o trabalho de {monthName(past.month)}.</span>
+            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </button>
+        ))}
+
+        <Card>
+          <h2 className="text-lg font-semibold text-ink">A travessia</h2>
+          <div className="mt-3 grid grid-cols-[132px_minmax(0,1fr)] items-center gap-3">
+            <Wheel index={stage.index} label={current.name} detail={stage.ended ? "mês encerrado" : `dia ${stage.day} de ${stage.days}`} />
+            <ol className="space-y-1">
+              {STAGES.map((item, index) => (
+                <li key={item.name} className={`grid grid-cols-[18px_minmax(0,1fr)] items-baseline gap-1.5 text-[13px] ${index === stage.index ? "font-semibold text-ink" : index < stage.index ? "text-ink/65" : "text-ink/40"}`}>
+                  <b className={`font-myth text-sm ${index === stage.index ? "text-terra" : ""}`}>{roman(index + 1)}</b>
+                  <span>{item.name}{index < stage.index ? " ✓" : ""}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div className="mt-3 border-t border-[#f0ebe1] pt-3">
+            <p className="text-sm leading-6 text-ink"><strong className="text-bronze">{current.name}.</strong> {current.prompt}</p>
+            {current.field ? <TextButton text={cycle[current.field]} label={current.fieldLabel!} onClick={() => setOpen({ kind: "text", cycle, field: current.field! })} /> : null}
+            {closing ? <button type="button" onClick={() => setOpen({ kind: "close", cycle, labor })} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-vase text-sm font-semibold text-[#fbf3ea]">Fechar o trabalho</button> : null}
+            {cycle.outcome ? <p className="mt-3 rounded-xl bg-paper p-3 text-sm text-ink/80">{cycle.outcome === "CUMPRIDO" ? "Trabalho cumprido e gravado no caminho." : "O monstro ainda vive: este trabalho volta no próximo mês."}</p> : null}
+          </div>
+        </Card>
+
+        {data.weapons.length ? (
+          <Card>
+            <h2 className="text-lg font-semibold text-ink">As armas</h2>
+            <p className="mt-1 text-xs text-ink/60">As suas práticas diárias da ED. Últimos 7 dias.</p>
+            <div className="mt-3 space-y-2.5">
+              {data.weapons.map((weapon) => (
+                <div key={weapon.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 font-semibold"><span className="h-2 w-2 shrink-0 rounded-full bg-[#b23a2c]" /><span className="truncate">{weapon.title}</span></span>
+                  <span className="flex shrink-0 gap-1" aria-label={`${weapon.days.filter(Boolean).length} de 7 dias`}>
+                    {weapon.days.map((done, index) => <i key={index} className={`block h-2.5 w-2.5 rounded-full ${done ? "bg-[#b23a2c]" : "bg-[#efeae0]"}`} />)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : null}
+
+        <Card>
+          <h2 className="text-lg font-semibold text-ink">O que já aconteceu</h2>
+          <ol className="mt-3 space-y-3 border-l-2 border-[#f3e2d6] pl-4">
+            <Mark when={`${shortDate(cycle.startDate)} · O chamado`}>Começou {labor.title}.</Mark>
+            {written.map((field) => (
+              <Mark key={field} when={FIELD_LABELS[field]} onClick={() => setOpen({ kind: "text", cycle, field })}><em className="not-italic text-ink/80">“{cycle[field]}”</em></Mark>
+            ))}
+            {data.falls.map((fall) => (
+              <Mark key={fall.from} when={`${shortDate(fall.from)} · Uma descida`} dark>{`Sem práticas da ED de ${shortDate(fall.from)} a ${shortDate(fall.to)}.`} {fall.back ? <b className="font-semibold text-emerald-800">Voltou em {shortDate(fall.back)}.</b> : <b className="font-semibold text-terra">A volta ainda está por vir.</b>}</Mark>
+            ))}
+          </ol>
+          <p className="mt-4 border-t border-[#f0ebe1] pt-3 text-xs leading-5 text-ink/60">Testemunhas até aqui: {data.witness.practiceDays} de {data.witness.days} dias com prática da ED · {data.witness.diaries} Diário{data.witness.diaries === 1 ? "" : "s"} · {data.witness.reflections} reflex{data.witness.reflections === 1 ? "ão" : "ões"}. Elas não fecham o trabalho: quem decide é você.</p>
+        </Card>
+    </>
   );
 }
 
@@ -298,8 +313,9 @@ function Meander({ className }: { className: string }) {
   return <span aria-hidden="true" className={`absolute inset-x-0 h-2.5 opacity-55 ${className}`} style={{ background: "repeating-linear-gradient(90deg, #c46a3d 0 2px, transparent 2px 10px, #c46a3d 10px 12px, transparent 12px 20px)" }} />;
 }
 
-function stationNote(station: JourneyData["path"][number], stageName: string) {
-  if (station.state === "now") return `agora · ${stageName.toLocaleLowerCase("pt-BR")}`;
+function stationNote(station: JourneyData["path"][number], stageName: string | null, prelude: string | null) {
+  if (prelude && station.labor.position === 1) return `começa em ${longDate(prelude)}`;
+  if (station.state === "now") return `agora · ${(stageName ?? "").toLocaleLowerCase("pt-BR")}`;
   if (station.state === "done") return station.elixir ? `“${excerpt(station.elixir)}”` : `cumprido${station.closedMonth ? ` em ${monthName(station.closedMonth)}` : ""}`;
   if (station.state === "lived") return station.times > 1 ? `vivido ${station.times} vezes` : "vivido, retorno pendente";
   return excerpt(station.labor.symbol, 70);

@@ -37,3 +37,8 @@ export function roman(value: number) {
   for (const [size, letters] of ROMAN) while (rest >= size) { text += letters; rest -= size; }
   return text;
 }
+
+/** "1º de novembro", "18 de outubro". */
+export function longDate(dateKey: string) {
+  return new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${dateKey}T12:00:00Z`)).replace(/^1 /, "1º ");
+}

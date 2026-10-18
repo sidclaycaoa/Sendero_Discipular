@@ -41,8 +41,27 @@ test("the Jornada opens a labor each month, keeps the user's texts and follows t
   const send = async (method, body) => worker.fetch(new Request("https://s/api/jornada", { method, headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }), env, ctx);
   const cycles = () => db.sqlite.prepare('SELECT month, laborId, startDate, outcome FROM "JourneyCycle" ORDER BY month').all().map((row) => ({ ...row }));
 
-  // First visit: the first labor starts today, at the call.
+  // Before the start day the Jornada is a prologue: the first labor can be read, nothing opens yet.
+  db.sqlite.prepare('UPDATE "User" SET journeyStart = ?').run(`${shift(month, 1)}-01`);
   let page = await get("/jornada");
+  assert.equal(page.status, 200);
+  assert.deepEqual(cycles(), []);
+  assert.match(page.text, /Hércules · I de XII O Leão de Nemeia/);
+  assert.match(page.text, /Prólogo · começa em 1º de \p{L}+ Até lá, leia o primeiro trabalho/u);
+  assert.match(page.text, /O Leão de Nemeia começa em 1º de/);
+  assert.ok(!page.text.includes("A travessia"));
+  assert.match(page.text, /Os mitos que virão.*Ulisses/);
+  assert.match((await get("/inicio")).text, /Jornada · prólogo O Leão de Nemeia Hércules começa em 1º de \p{L}+ Ler o primeiro trabalho/u);
+
+  // From the start day on, the first labor takes the whole month.
+  db.sqlite.prepare('UPDATE "User" SET journeyStart = ?').run(`${month}-01`);
+  page = await get("/jornada");
+  assert.deepEqual(cycles(), [{ month, laborId: "hercules-01", startDate: `${month}-01`, outcome: null }]);
+  db.sqlite.prepare('DELETE FROM "JourneyCycle"').run();
+
+  // With no start day set, the first labor starts on the first visit.
+  db.sqlite.prepare('UPDATE "User" SET journeyStart = NULL').run();
+  page = await get("/jornada");
   assert.equal(page.status, 200);
   assert.deepEqual(cycles(), [{ month, laborId: "hercules-01", startDate: today, outcome: null }]);
   assert.match(page.text, /Hércules · I de XII O Leão de Nemeia/);

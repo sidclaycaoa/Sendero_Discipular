@@ -21,19 +21,17 @@ export type Fall = { from: string; to: string; back: string | null };
 export type Stone = { value: string; label: string; next?: boolean; tone?: "water" };
 export type PathStation = { labor: JourneyLabor; state: "done" | "now" | "lived" | "ahead"; times: number; elixir: string | null; closedMonth: string | null };
 
-export type JourneyData = {
+type JourneyCommon = { labor: JourneyLabor; myth: JourneyMyth; path: PathStation[]; myths: JourneyMyth[]; stones: Stone[] };
+/** Before the start day the Jornada is a prologue: the first labor and the myths can be read, nothing is lived yet. */
+export type JourneyData = JourneyCommon & ({ prelude: string } | {
+  prelude: null;
   cycle: JourneyCycle;
-  labor: JourneyLabor;
-  myth: JourneyMyth;
   stage: ReturnType<typeof stageOf>;
   weapons: Array<{ id: string; title: string; days: boolean[] }>;
   falls: Fall[];
   witness: { days: number; practiceDays: number; diaries: number; reflections: number };
-  path: PathStation[];
   pendingReturns: Array<{ cycle: JourneyCycle; labor: JourneyLabor }>;
-  myths: JourneyMyth[];
-  stones: Stone[];
-};
+});
 
 type CycleRow = JourneyCycle & { userId: string };
 type HabitRow = { id: string; title: string; cadence: string; targetCount: number; groupCode: string | null };
@@ -60,8 +58,15 @@ function nextLabor(myths: JourneyMyth[], laborId: string | null) {
 
 const isEmpty = (cycle: JourneyCycle) => !cycle.outcome && CYCLE_FIELDS.every((field) => !cycle[field]);
 
-/** This month's cycle, opened on the first visit of the month. */
-async function ensureCycle(userId: string, todayKey: string, myths: JourneyMyth[]) {
+/** The day the journey begins (NULL: on the first visit). */
+async function journeyStart(userId: string) {
+  const row = await getSenderoDb().prepare('SELECT journeyStart FROM "User" WHERE id = ?').bind(userId).first<{ journeyStart: string | null }>();
+  return row?.journeyStart ?? null;
+}
+
+/** This month's cycle, opened on the first visit of the month; none before the start day. */
+async function ensureCycle(userId: string, todayKey: string, myths: JourneyMyth[], start: string | null) {
+  if (start && todayKey < start) return null;
   const db = getSenderoDb();
   const month = todayKey.slice(0, 7);
   const find = () => db.prepare('SELECT * FROM "JourneyCycle" WHERE userId = ? AND month = ?').bind(userId, month).first<CycleRow>();
@@ -71,17 +76,23 @@ async function ensureCycle(userId: string, todayKey: string, myths: JourneyMyth[
   const labor = last?.outcome === "REPETIR" ? myths.flatMap((myth) => myth.labors).find((item) => item.id === last.laborId) : nextLabor(myths, last?.laborId ?? null);
   if (!labor) throw new Error("Os mitos da Jornada ainda não foram cadastrados.");
   const now = new Date().toISOString();
-  // The very first cycle starts on the day it opens; later ones take the whole month.
+  // Cycles take the whole month; only a first cycle with no start day set begins on the day it opens.
+  const startDate = last ? `${month}-01` : start && start.slice(0, 7) === month ? start : todayKey;
   await db.prepare('INSERT OR IGNORE INTO "JourneyCycle" (id, userId, laborId, month, startDate, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(`cycle_${crypto.randomUUID()}`, userId, labor.id, month, last ? `${month}-01` : todayKey, now, now).run();
+    .bind(`cycle_${crypto.randomUUID()}`, userId, labor.id, month, startDate, now, now).run();
   return (await find())!;
 }
 
 export async function getJourney(userId: string, todayKey: string): Promise<JourneyData> {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const myths = await loadMyths();
-  const cycle = await ensureCycle(userId, todayKey, myths);
+  const [myths, start] = await Promise.all([loadMyths(), journeyStart(userId)]);
+  const cycle = await ensureCycle(userId, todayKey, myths, start);
+  if (!cycle) {
+    const [myth] = myths;
+    const ahead = (labor: JourneyLabor): PathStation => ({ labor, state: "ahead", times: 0, elixir: null, closedMonth: null });
+    return { prelude: start!, labor: myth.labors[0], myth, path: myth.labors.map(ahead), myths, stones: await getStones(userId, todayKey) };
+  }
   const labors = myths.flatMap((myth) => myth.labors);
   const labor = labors.find((item) => item.id === cycle.laborId)!;
   const myth = myths.find((item) => item.id === labor.mythId)!;
@@ -117,6 +128,7 @@ export async function getJourney(userId: string, todayKey: string): Promise<Jour
   const inWindow = (date: string) => date >= cycle.startDate && date <= windowEnd;
   const doneIds = new Set(cycles.results.filter((item) => item.outcome === "CUMPRIDO").map((item) => item.laborId));
   return {
+    prelude: null,
     cycle: pick(cycle),
     labor,
     myth,
@@ -198,13 +210,14 @@ export async function closeCycle(userId: string, input: Record<string, unknown>)
 /** For Início: the labor of the month and the stones reached today. */
 export async function getJourneyCard(userId: string, todayKey: string) {
   await ensureSenderoSeeded();
-  const myths = await loadMyths();
-  const cycle = await ensureCycle(userId, todayKey, myths);
+  const [myths, start] = await Promise.all([loadMyths(), journeyStart(userId)]);
+  const cycle = await ensureCycle(userId, todayKey, myths, start);
+  const marks = await todayMarks(userId, todayKey);
+  if (!cycle) return { prelude: start!, hero: myths[0].hero, mythTitle: myths[0].title, labor: myths[0].labors[0].title, position: 1, total: myths[0].labors.length, monster: null, stage: null, marks };
   const labor = myths.flatMap((myth) => myth.labors).find((item) => item.id === cycle.laborId)!;
   const myth = myths.find((item) => item.id === labor.mythId)!;
-  const marks = await todayMarks(userId, todayKey);
   if (cycle.startDate === todayKey) marks.unshift(`começa ${labor.title.replace(/^(O|A|Os|As) /, (article) => article.toLocaleLowerCase("pt-BR"))}`);
-  return { hero: myth.hero, mythTitle: myth.title, labor: labor.title, position: labor.position, total: myth.labors.length, monster: cycle.monster, stage: stageOf(cycle.startDate, todayKey), marks };
+  return { prelude: null, hero: myth.hero, mythTitle: myth.title, labor: labor.title, position: labor.position, total: myth.labors.length, monster: cycle.monster, stage: stageOf(cycle.startDate, todayKey), marks };
 }
 
 const reflectionStone = (n: number) => n === 1 || n % 100 === 0;
