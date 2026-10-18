@@ -1,6 +1,7 @@
 import { InicioScreen } from "@/components/inicio/InicioScreen";
-import { getActiveUser, getDailyDiscipleshipTonic, getDiaryEntry, getDiscipleshipCatalog, getOpenTasks, getReflectionAttendance, getReflectionPageData } from "@/lib/db/sendero";
+import { getActiveUser, getDiaryEntry, getOpenTasks, getReflectionAttendance, getReflectionPageData } from "@/lib/db/sendero";
 import type { ReflectionAttendance } from "@/lib/db/sendero";
+import { getJourneyCard, type JourneyCardData } from "@/lib/db/jornada";
 import { getPercursoData } from "@/lib/db/percurso";
 import { countOpenMasterQuestions } from "@/lib/db/pendencias";
 import { getLiveIdeas } from "@/lib/db/escola";
@@ -25,26 +26,26 @@ export default async function InicioPage() {
   let openTasks: OpenTask[] = [];
   let diaryDone = false;
   let percurso: PercursoData | null = null;
-  let tonicPosition: { current: number; total: number } | null = null;
+  let journey: JourneyCardData | null = null;
   let attendance: { current: ReflectionAttendance; previous: ReflectionAttendance } | null = null;
   let masterQuestions = 0;
   let school: { ideas: number; livedToday: number } | null = null;
   const todayKey = getSaoPauloDateKey();
 
   try {
-    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, tonic, catalog, loadedAttendance, openMasterQuestions, live] = await Promise.all([
+    const [reflectionData, loadedTasks, diaryEntry, loadedPercurso, loadedJourney, loadedAttendance, openMasterQuestions, live] = await Promise.all([
       getReflectionPageData(user.id, user.cycleAnchorDate, undefined, undefined, 60),
       getOpenTasks(user.id),
       getDiaryEntry(user.id, todayKey),
       getPercursoData(user.id, todayKey).catch((error) => { console.error("Failed to load percurso", error); return null; }),
-      getDailyDiscipleshipTonic(user.id, todayKey).catch(() => null),
-      getDiscipleshipCatalog(user.id).catch(() => []),
+      getJourneyCard(user.id, todayKey).catch((error) => { console.error("Failed to load jornada", error); return null; }),
       getReflectionAttendance(user.id, todayKey).catch(() => null),
       countOpenMasterQuestions(user.id).catch(() => 0),
       getLiveIdeas(user.id, todayKey).catch(() => null),
     ]);
     school = live ? { ideas: live.ideas.length, livedToday: live.ideas.filter((idea) => idea.doneToday).length } : null;
     masterQuestions = openMasterQuestions;
+    journey = loadedJourney;
     attendance = loadedAttendance;
 
     topics = reflectionData.topics;
@@ -52,9 +53,6 @@ export default async function InicioPage() {
     openTasks = loadedTasks;
     diaryDone = Boolean(diaryEntry);
     percurso = loadedPercurso;
-    const topicIds = catalog.flatMap((phase) => phase.topics.map((topic) => topic.id));
-    const position = tonic ? topicIds.indexOf(tonic.id) : -1;
-    tonicPosition = position >= 0 ? { current: position + 1, total: topicIds.length } : null;
   } catch (error) {
     console.error("Failed to load /inicio data", error);
   }
@@ -73,7 +71,7 @@ export default async function InicioPage() {
       todayKey={todayKey}
       percurso={percurso}
       school={school}
-      tonicPosition={tonicPosition}
+      journey={journey}
       attendance={attendance}
       masterQuestions={masterQuestions}
     />

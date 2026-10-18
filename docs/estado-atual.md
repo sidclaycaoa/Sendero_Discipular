@@ -12,7 +12,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   4. o **usuário faz o merge**;
   5. o Cloudflare Workers Builds publica sozinho a partir do `main`.
 - **Banco D1 `sendero-discipular`** (id `8eecf873-d8f3-44ff-b72c-74d9d573dcd1`):
-  - toda mudança é um novo arquivo em `migrations/` (hoje até `0017_agenda.sql`);
+  - toda mudança é um novo arquivo em `migrations/` (hoje até `0019_journey_start.sql`);
   - a migração é aplicada em produção pelo MCP da Cloudflare (`d1_database_query`), e o nome é registrado em `d1_migrations`;
   - nunca apagar dados sem perguntar.
 - **Custo zero:**
@@ -32,8 +32,18 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 ## Módulos (rota → arquivos principais)
 
 - **Início** `/inicio`:
-  - tônica, anéis do dia, Percurso (força, constância, mapa de calor, % de atendimento com meta de 90%);
+  - tônica, anéis do dia, % de atendimento às reflexões com meta de 90%;
+  - cartão da Jornada (trabalho do mês e etapa) e, no dia em que se chega a um marco, uma linha "Hoje, na jornada";
   - cards Escola e Mestre.
+- **Jornada** `/jornada` (`components/jornada/JornadaScreen.tsx`, `lib/db/jornada.ts`, `lib/jornada-shared.ts`), no lugar do antigo "karma":
+  - **um trabalho de um mito por mês**, em ordem fixa, aberto sozinho na primeira visita do mês, sempre com o mês inteiro. A jornada começa em **1º/11/2026** (`User.journeyStart`, escolha do usuário); antes disso a tela é um **prólogo**: mostra o Leão de Nemeia, os doze trabalhos e os mitos que virão, só para leitura, e o Início diz "Jornada · prólogo";
+  - o mês atravessa as **7 etapas do herói** (Campbell), divididas pelos dias: o chamado (o monstro), o mestre (o conselho), o limiar, as provas, o abismo (a queda e a volta), o elixir e o retorno;
+  - os textos são do usuário (`JourneyCycle`); quem fecha o trabalho é ele: "cumprido" ou "o monstro ainda vive" (o trabalho se repete no mês seguinte, se o mês novo ainda estiver em branco);
+  - armas = práticas diárias da ED; quedas = 2+ dias sem prática da ED; os números aparecem só como "testemunhas";
+  - **pedras do caminho**: reflexões, temas, sequências, Diários, horas cronometradas, água (marcos: reflexões 1 e a cada 100; Diário 1, 10, 25 e a cada 50; primeiro dia na meta de água);
+  - o Percurso (mapa de calor, constância, força, mês contra mês, reflexões por mês) saiu do Início e fica no fim desta tela;
+  - **os 10 mitos, em ordem** (76 meses no total, textos em `migrations/0018_jornada.sql`, editáveis no banco): Hércules (12 trabalhos), Ulisses (12 ilhas da Odisseia), Teseu (7), Rama (os 7 livros do Ramayana), Psiquê (4 tarefas), Perseu (6), Arjuna (Bhagavad Gita, 7), Gilgamesh (7), Jasão (7), Parsifal (7). Os significados são a leitura tradicional do mito; o usuário corrige com o que aprende na Escola. Novos mitos entram como novas linhas em `JourneyMyth`/`JourneyLabor`;
+  - fonte dos títulos: Cormorant SC, servida pelo próprio app (`public/fonts`).
 - **Refletir** `/refletir`: reflexões do ciclo, fila do mês com filtro do mês anterior, AD.
 - **Hábitos** `/habitos` (`components/habitos/HabitsScreen.tsx`):
   - lista por período do dia, com horário e lembrete por hábito;
@@ -43,7 +53,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 - **Praticar** `/praticar/[id]`:
   - Tratak, Asana (imagem do dia), formas geométricas, músicas;
   - a tela fica acesa durante o exercício (`lib/screen-awake.ts`).
-- **Memorização** `/memorizar`: textos por linha (ler → iniciais → de cor); a tela fica acesa.
+- **Memorização** `/memorizar`: textos por linha (ler → iniciais → de cor), com as linhas já sabidas visíveis acima da nova; a tela fica acesa.
 - **Leitura** `/leitura`: livros, apostilas, textos e leituras de aula com prazo; cronômetro; trechos que viram Memorização.
 - **Escola** `/escola`:
   - **Bastião da semana** (nº, nome, lido, ideias-força, até 3 ideias "para viver" com check diário, reflexão), com arquivo e busca;
@@ -58,14 +68,15 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 
 ## Fila (ordem combinada)
 
-1. **Marcos de superação**, no lugar do antigo "karma":
-   - recordes pessoais, mês contra mês, marcos atingidos;
-   - **fazer maquete antes de construir**;
-   - sem gamificação infantil (ver dossiê).
+1. **Refino da Jornada** (depois de o usuário viver o primeiro mês):
+   - pergunta do mês dentro do Diário ("como foi o confronto com o monstro hoje?");
+   - escolher as armas de cada trabalho (hoje são todas as práticas diárias da ED);
+   - editar os textos dos mitos pelo app;
+   - um desenho próprio para cada trabalho (hoje: medalhão com o número romano).
 2. **Caderno de anotações**, estilo OneNote:
    - cadernos → seções → páginas, editor TipTap, busca (FTS5 do D1), ligação com Leitura, Escola e Memorização;
    - maquete antes.
-3. **Frases e passagens** (pode entrar no Caderno) e refino da **Jornada**.
+3. **Frases e passagens** (pode entrar no Caderno).
 4. **Faxina do banco:** o usuário apaga no painel D1 as tabelas antigas (`ReferencePassageSearch`, `ReferenceWork`, `ExportLog`, `bkp20261017_*`, `BastiaoWeek`). É preciso passar o passo a passo.
 5. **Por último:**
    - **Face ID** via passkeys/WebAuthn. Avisar que o iPhone permite o código do aparelho como alternativa, e quem souber o código abriria o app.

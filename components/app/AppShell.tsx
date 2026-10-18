@@ -22,7 +22,7 @@ const RETURN_HOME_AFTER_MS = 30 * 60 * 1000;
 
 /** Screens where the user may be mid-writing; never navigate away from them. */
 function isWritingScreen(pathname: string) {
-  return pathname === "/diario" || pathname === "/configuracoes" || pathname.startsWith("/leitura") || pathname.startsWith("/memorizar") || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
+  return pathname === "/diario" || pathname === "/configuracoes" || pathname === "/jornada" || pathname.startsWith("/leitura") || pathname.startsWith("/memorizar") || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
 }
 
 export function AppShell({ children, showDailyTonic = true }: { children: ReactNode; showDailyTonic?: boolean }) {

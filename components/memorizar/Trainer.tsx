@@ -18,7 +18,8 @@ const READY_AFTER = 3;
 /**
  * Practice of one text: the new line goes from reading, to first letters, to
  * by heart; three right answers by heart suggest moving to the next line.
- * "Do início" recites everything learned so far plus the new line.
+ * The lines already learned stay above it as plain text, to read the new one in
+ * context; "Do início" hides them too, to recite everything from the start.
  */
 export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: boolean }) {
   const router = useRouter();
@@ -39,8 +40,10 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
   const total = text.lines.length;
   const complete = known >= total;
   const current = Math.min(known, total - 1);
-  const shown = complete || fromStart ? text.lines.slice(0, complete ? total : current + 1) : [text.lines[current]];
-  const firstShown = complete || fromStart ? 0 : current;
+  const shown = text.lines.slice(0, complete ? total : current + 1);
+  // A long text keeps the line being worked on in sight when it changes.
+  const newLine = useRef<HTMLLIElement>(null);
+  useEffect(() => { newLine.current?.scrollIntoView({ block: "nearest" }); }, [current]);
 
   async function record(event: "ACERTOU" | "ERROU" | "AVANCOU" | "VOLTOU") {
     setError(null);
@@ -123,15 +126,17 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
           ) : null}
         </div>
 
-        <ol className="mt-4 space-y-3" aria-live="polite">
+        {!complete && !fromStart && known > 0 ? <p className="mt-4 text-xs font-semibold text-ink/55">Já de cor: leia junto antes da linha nova.</p> : null}
+        <ol className={`${!complete && !fromStart && known > 0 ? "mt-2 space-y-1.5" : "mt-4 space-y-3"}`} aria-live="polite">
           {shown.map((line, index) => {
-            const number = firstShown + index + 1;
+            const number = index + 1;
             const isNew = !complete && number === current + 1;
+            const practised = complete || fromStart || isNew;
             return (
-              <li key={number} className={`flex gap-3 rounded-lg p-3 ${isNew ? "bg-paper ring-1 ring-moss/30" : ""}`}>
+              <li key={number} ref={isNew ? newLine : undefined} className={`flex gap-3 rounded-lg ${isNew ? "bg-paper p-3 ring-1 ring-moss/30" : "px-3 py-1"}`}>
                 <span className="mt-0.5 w-5 shrink-0 text-right text-xs font-semibold tabular-nums text-ink/40">{number}</span>
-                <p className={`min-w-0 flex-1 text-lg leading-8 ${isNew ? "font-medium text-ink" : "text-ink/80"}`}>
-                  {hidden ? <Blanks line={line} /> : mode === "iniciais" ? <span className="tracking-wide">{initials(line)}</span> : line}
+                <p className={`min-w-0 flex-1 ${isNew ? "text-lg leading-8 font-medium text-ink" : practised ? "text-lg leading-8 text-ink/80" : "text-base leading-7 text-ink/55"}`}>
+                  {!practised ? line : hidden ? <Blanks line={line} /> : mode === "iniciais" ? <span className="tracking-wide">{initials(line)}</span> : line}
                 </p>
               </li>
             );

@@ -3,14 +3,16 @@ import { ArrowRight, BookOpenText, CalendarCheck2, Clock3, GraduationCap, HelpCi
 import { AppShell } from "@/components/app/AppShell";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 import { calculateMortem } from "@/lib/services/MortemService";
-import { PercursoSections, TodayRings } from "@/components/inicio/PercursoSections";
-import type { PercursoData } from "@/lib/db/percurso";
+import { AttendanceCard, TodayRings } from "@/components/inicio/PercursoSections";
+import { JourneyCard } from "@/components/inicio/JourneyCard";
+import type { JourneyCardData } from "@/lib/db/jornada";
 import type { ReflectionAttendance } from "@/lib/db/sendero";
+import type { PercursoData } from "@/lib/db/percurso";
 import type { DbReflectionTopic, OpenTask, OverdueReflectionTopic } from "@/lib/db/sendero";
 
-type InicioScreenProps = { realUser?: { name: string; birthDate: string; mortemTargetAge: number }; realReflectionTopics?: DbReflectionTopic[]; overdueReflections?: OverdueReflectionTopic[]; openTasks?: OpenTask[]; diaryDone?: boolean; todayKey?: string; percurso?: PercursoData | null; tonicPosition?: { current: number; total: number } | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null; masterQuestions?: number; school?: { ideas: number; livedToday: number } | null };
+type InicioScreenProps = { realUser?: { name: string; birthDate: string; mortemTargetAge: number }; realReflectionTopics?: DbReflectionTopic[]; overdueReflections?: OverdueReflectionTopic[]; openTasks?: OpenTask[]; diaryDone?: boolean; todayKey?: string; percurso?: PercursoData | null; journey?: JourneyCardData | null; attendance?: { current: ReflectionAttendance; previous: ReflectionAttendance } | null; masterQuestions?: number; school?: { ideas: number; livedToday: number } | null };
 
-export function InicioScreen({ realUser, realReflectionTopics = [], overdueReflections = [], openTasks = [], diaryDone = false, todayKey = new Date().toISOString().slice(0, 10), percurso = null, tonicPosition = null, attendance = null, masterQuestions = 0, school = null }: InicioScreenProps) {
+export function InicioScreen({ realUser, realReflectionTopics = [], overdueReflections = [], openTasks = [], diaryDone = false, todayKey = new Date().toISOString().slice(0, 10), percurso = null, journey = null, attendance = null, masterQuestions = 0, school = null }: InicioScreenProps) {
   const topics = realReflectionTopics;
   const pending = topics.filter(topic => topic.status !== "feita").length;
   const lateTasks = openTasks.filter(task => task.proximity === "late").length;
@@ -37,7 +39,9 @@ export function InicioScreen({ realUser, realReflectionTopics = [], overdueRefle
     </section>
 
 
-    {percurso ? <PercursoSections data={percurso} tonicPosition={tonicPosition} attendance={attendance} /> : null}
+    {attendance ? <AttendanceCard current={attendance.current} previous={attendance.previous} /> : null}
+
+    {journey ? <JourneyCard journey={journey} /> : null}
 
     <Link prefetch={false} href="/escola" className="mt-4 flex items-center gap-3 rounded-2xl border border-clay/25 bg-clay/5 p-4 text-ink">
       <GraduationCap className="h-6 w-6 shrink-0 text-clay" aria-hidden="true" />
