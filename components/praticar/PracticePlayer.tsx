@@ -22,6 +22,7 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
   const audio = useRef<AudioContext | null>(null);
   const wakeLock = useRef<{ release: () => Promise<void> } | null>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const player = useRef<HTMLAudioElement>(null);
   const duration = tool.kind === "music" ? null : tool.durationSec;
 
   useEffect(() => {
@@ -30,7 +31,8 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
       const seconds = (Date.now() - startedAt.current) / 1000;
       setElapsed(seconds);
       if (tool.kind === "intervals") {
-        const due = Math.min(Math.floor(seconds / tool.everySec), Math.floor(tool.durationSec / tool.everySec));
+        // The last mark is announced by the closing tones instead of a single bell.
+        const due = Math.min(Math.floor(seconds / tool.everySec), Math.floor(tool.durationSec / tool.everySec) - 1);
         while (bellsRung.current < due) { bellsRung.current += 1; ring(); }
       }
       if (duration !== null && seconds >= duration) finish(true);
@@ -39,33 +41,46 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  // Full screen (and landscape) once the circle is on screen, still within the tap that started it.
-  useEffect(() => {
-    if (phase !== "running" || tool.kind !== "tratak" || !stage.current) return;
-    void stage.current.requestFullscreen?.()
-      .then(() => (screen.orientation as unknown as { lock?: (orientation: string) => Promise<void> }).lock?.("landscape"))
-      .catch(() => undefined);
-  }, [phase, tool.kind]);
-
   useEffect(() => () => { void release(); }, []);
 
-  function ring(final = false) {
+  function tone(frequency: number, at: number, length: number) {
     const context = audio.current;
     if (!context) return;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = "sine";
-    oscillator.frequency.value = final ? 523 : 660;
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.4, context.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + (final ? 1.6 : 0.8));
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, context.currentTime + at);
+    gain.gain.exponentialRampToValueAtTime(0.5, context.currentTime + at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + at + length);
     oscillator.connect(gain).connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + (final ? 1.7 : 0.9));
-    navigator.vibrate?.(final ? [300, 150, 300] : 200);
+    oscillator.start(context.currentTime + at);
+    oscillator.stop(context.currentTime + at + length + 0.05);
+  }
+
+  /** One bell for each interval; three rising tones and a vibration when the time is up. */
+  function ring(final = false) {
+    if (final) {
+      tone(660, 0, 0.6); tone(784, 0.7, 0.6); tone(988, 1.4, 1.2);
+      navigator.vibrate?.([400, 200, 400, 200, 600]);
+    } else {
+      tone(660, 0, 0.8);
+      navigator.vibrate?.(200);
+    }
   }
 
   async function start() {
+    // Things that need the tap itself come first, before anything is awaited.
+    if (tool.kind === "tratak") {
+      void document.documentElement.requestFullscreen?.({ navigationUI: "hide" })
+        .then(() => (screen.orientation as unknown as { lock?: (orientation: string) => Promise<void> }).lock?.("landscape"))
+        .catch(() => undefined);
+    }
+    if (tool.kind === "music" && player.current) {
+      player.current.currentTime = 0;
+      void player.current.play().catch(() => undefined);
+      if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: tool.trackName, artist: habit.title, album: "Sendero" });
+    }
     const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     audio.current ??= AudioCtor ? new AudioCtor() : null;
     await audio.current?.resume().catch(() => undefined);
@@ -79,6 +94,7 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
   }
 
   async function release() {
+    player.current?.pause();
     await wakeLock.current?.release().catch(() => undefined);
     wakeLock.current = null;
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
@@ -86,8 +102,7 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
   }
 
   function finish(completed: boolean) {
-    // The interval tool already rang its last bell; Tratak gets a softer closing tone.
-    if (completed && tool.kind === "tratak") ring(true);
+    if (completed) ring(true);
     void release();
     setPhase("done");
   }
@@ -116,16 +131,16 @@ export function PracticePlayer({ habit, tool }: { habit: PracticeHabit; tool: Pr
         {phase !== "done" ? (
           <div className="mt-5 text-center">
             <p className="text-5xl font-semibold tabular-nums text-ink" aria-live="off">{duration !== null ? clock(Math.max(0, duration - elapsed)) : clock(elapsed)}</p>
-            {tool.kind === "intervals" ? <p className="mt-2 text-sm text-ink/60">Som {Math.min(bellsRung.current, tool.durationSec / tool.everySec)} de {tool.durationSec / tool.everySec} · a cada {tool.everySec} s</p> : null}
+            {tool.kind === "intervals" ? <p className="mt-2 text-sm text-ink/60">Troca {Math.min(Math.floor(elapsed / tool.everySec) + 1, tool.durationSec / tool.everySec)} de {tool.durationSec / tool.everySec} · som a cada {tool.everySec} s</p> : null}
             {duration !== null ? <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-paper"><div className="h-full rounded-full bg-olive" style={{ width: `${Math.min(100, elapsed / duration * 100)}%` }} /></div> : null}
           </div>
         ) : null}
 
-        {tool.kind === "music" && phase === "running" ? (
-          <div className="mt-5">
-            <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
-              <iframe className="h-full w-full" src={`https://www.youtube-nocookie.com/embed/${tool.youtubeId}?autoplay=1&playsinline=1&rel=0`} title={tool.label} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
-            </div>
+        {tool.kind === "music" ? (
+          <div className={phase === "running" ? "mt-5" : "hidden"}>
+            <p className="text-sm font-semibold text-ink">{tool.trackName}</p>
+            <audio ref={player} src={tool.audioSrc} loop preload="auto" controls className="mt-2 w-full" />
+            <p className="mt-1 text-xs text-ink/55">Repete sozinha até você concluir.</p>
             <a href={tool.spotifyUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-moss"><Music2 className="h-4 w-4" aria-hidden="true" /> Abrir no Spotify</a>
           </div>
         ) : null}

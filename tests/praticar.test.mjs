@@ -56,7 +56,9 @@ test("a habit with a practice tool gets a 'Praticar' screen; one without does no
   const habits = await (await call("/habitos")).text();
   assert.ok(habits.includes(`/praticar/${tratak.id}`));
   assert.ok(!habits.includes(`/praticar/${plain.id}`));
-  const page = await text(await call(`/praticar/${tratak.id}`));
+  const html = await (await call(`/praticar/${tratak.id}`)).text();
+  assert.match(html, /<audio[^>]*src="\/audio\/templo-interior.mp3"[^>]*loop/);
+  const page = await text(new Response(html));
   assert.match(page, /Prática guiada Templo Interior/);
   assert.match(page, /A música toca aqui no app/);
   assert.equal((await call(`/praticar/${plain.id}`)).status, 404);

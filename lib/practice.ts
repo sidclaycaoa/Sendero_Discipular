@@ -5,7 +5,7 @@ export type PracticeToolKey = "TRATAK" | "INTERVALOS" | "TEMPLO" | "CAMARA";
 export type PracticeTool =
   | { key: "TRATAK"; label: string; kind: "tratak"; durationSec: number; hint: string }
   | { key: "INTERVALOS"; label: string; kind: "intervals"; durationSec: number; everySec: number; hint: string }
-  | { key: "TEMPLO" | "CAMARA"; label: string; kind: "music"; youtubeId: string; spotifyUrl: string; hint: string };
+  | { key: "TEMPLO" | "CAMARA"; label: string; kind: "music"; audioSrc: string; trackName: string; spotifyUrl: string; hint: string };
 
 export const PRACTICE_TOOLS: Record<PracticeToolKey, PracticeTool> = {
   TRATAK: {
@@ -18,13 +18,15 @@ export const PRACTICE_TOOLS: Record<PracticeToolKey, PracticeTool> = {
   },
   TEMPLO: {
     key: "TEMPLO", label: "Música do Templo Interior", kind: "music",
-    youtubeId: "qKGY8eGmIK8", spotifyUrl: "https://open.spotify.com/album/48qaRUJRuWVAGrQIhPkwad",
-    hint: "A música toca aqui no app. A tela fica acesa durante a prática.",
+    audioSrc: "/audio/templo-interior.mp3", trackName: "Bach · Concerto para cravo nº 1, BWV 1052",
+    spotifyUrl: "https://open.spotify.com/album/48qaRUJRuWVAGrQIhPkwad",
+    hint: "A música toca aqui no app e se repete até você parar.",
   },
   CAMARA: {
     key: "CAMARA", label: "Música da Câmara de Purificação", kind: "music",
-    youtubeId: "TdYcD7lsVF0", spotifyUrl: "https://open.spotify.com/track/504wsV4Br1jy9xUvWzpAog",
-    hint: "A música toca aqui no app. A tela fica acesa durante a prática.",
+    audioSrc: "/audio/camara-purificacao.mp3", trackName: "Bach · Air, Suíte orquestral nº 3, BWV 1068",
+    spotifyUrl: "https://open.spotify.com/track/504wsV4Br1jy9xUvWzpAog",
+    hint: "A música toca aqui no app e se repete até você parar.",
   },
 };
 
