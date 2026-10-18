@@ -4,20 +4,21 @@ import { createMemorizationText } from "@/lib/db/memorizacao";
 import { createMasterQuestion } from "@/lib/db/pendencias";
 import { createHabitTemplate } from "@/lib/db/sendero";
 import { bastiaoLabel, MAX_LIVE_IDEAS } from "@/lib/escola-shared";
-import { addDays } from "@/lib/habit-streak";
+import { addDays, streaks, weekStart } from "@/lib/habit-streak";
 
 /**
- * Escola: a class brings one or two Bastiões and practices to live until the
- * next class. Key ideas of a Bastião can be chosen (up to three per class) to
- * be lived every day; practices point to habits and keep the points and
- * reflections to bring back.
+ * Escola: the Bastião is weekly (the masters' text of the week, read on its
+ * site); a monthly class may assign one, and asks for practices to live until
+ * the next class. Key ideas of the week's Bastiões (up to three) are lived
+ * every day; practices point to habits and keep the points to bring back.
  */
 
-export type Idea = { id: string; text: string; live: boolean; doneToday: boolean; last7: Array<0 | 1> };
-export type Bastiao = { id: string; classId: string | null; number: number | null; name: string; read: boolean; notes: string; reflection: string; ideas: Idea[] };
+export type Idea = { id: string; text: string; live: boolean; doneToday: boolean; last7: Array<0 | 1>; daysLived: number };
+export type Bastiao = { id: string; weekStart: string; fromClass: boolean; number: number | null; name: string; read: boolean; notes: string; reflection: string; ideas: Idea[] };
 export type ClassPractice = { id: string; habitId: string | null; title: string; points: string; doneToday: boolean | null; last7: Array<0 | 1> | null };
 export type SchoolClass = { id: string; date: string; title: string; notes: string; closing: string; bastioes: Bastiao[]; practices: ClassPractice[]; until: string | null };
 export type LiveIdea = { id: string; text: string; bastiao: string; doneToday: boolean; last7: Array<0 | 1> };
+export type BastiaoSummary = { id: string; weekStart: string; number: number | null; name: string; read: boolean; fromClass: boolean; ideas: number };
 
 const MAX_TEXT = 20_000;
 const text = (value: unknown, max = MAX_TEXT) => (typeof value === "string" ? value.trim().slice(0, max) : "");
@@ -26,7 +27,7 @@ const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const lastDays = (today: string) => Array.from({ length: 7 }, (_, index) => addDays(today, index - 6));
 
 type ClassRow = { id: string; date: string; title: string | null; notes: string | null; closing: string | null };
-type BastiaoRow = { id: string; classId: string | null; number: number | null; name: string; readAt: string | null; notes: string | null; reflection: string | null };
+type BastiaoRow = { id: string; weekStart: string | null; classId: string | null; number: number | null; name: string; readAt: string | null; notes: string | null; reflection: string | null; createdAt: string };
 type IdeaRow = { id: string; bastiaoId: string; text: string; live: number };
 
 async function own(table: string, id: string, userId: string) {
@@ -34,34 +35,84 @@ async function own(table: string, id: string, userId: string) {
   if (!row) throw new Error("Item não encontrado.");
 }
 
-/** Class list, and the one in course: the latest class up to today (or the first future one). */
+/** The class in course: the latest one up to today. */
+async function currentClassId(userId: string, today: string) {
+  const row = await getSenderoDb().prepare('SELECT id FROM "SchoolClass" WHERE userId = ? AND date <= ? ORDER BY date DESC, createdAt DESC LIMIT 1').bind(userId, today).first<{ id: string }>();
+  return row?.id ?? null;
+}
+
+/** Bastiões matching a condition, with their ideas and the last 7 days each idea was lived. */
+async function loadBastioes(userId: string, where: string, params: string[], today: string): Promise<Bastiao[]> {
+  const db = getSenderoDb();
+  const rows = (await db.prepare(`SELECT id, weekStart, classId, number, name, readAt, notes, reflection, createdAt FROM "Bastiao" WHERE userId = ? AND (${where}) ORDER BY weekStart, COALESCE(number, 999999), createdAt`)
+    .bind(userId, ...params).all<BastiaoRow>()).results;
+  if (!rows.length) return [];
+  const ids = rows.map((row) => row.id);
+  const marks = ids.map(() => "?").join(",");
+  const days = lastDays(today);
+  const [ideas, logs] = await Promise.all([
+    db.prepare(`SELECT id, bastiaoId, text, live FROM "BastiaoIdea" WHERE bastiaoId IN (${marks}) ORDER BY position, createdAt`).bind(...ids).all<IdeaRow>(),
+    db.prepare(`SELECT l.ideaId, l.date FROM "IdeaLog" l JOIN "BastiaoIdea" i ON i.id = l.ideaId WHERE i.bastiaoId IN (${marks})`).bind(...ids).all<{ ideaId: string; date: string }>(),
+  ]);
+  const logged = new Set(logs.results.map((log) => `${log.ideaId}:${log.date}`));
+  const lived = new Map<string, number>();
+  logs.results.forEach((log) => lived.set(log.ideaId, (lived.get(log.ideaId) ?? 0) + 1));
+  return rows.map((row) => ({
+    id: row.id, weekStart: row.weekStart ?? weekStart(row.createdAt.slice(0, 10)), fromClass: Boolean(row.classId),
+    number: row.number, name: row.name, read: Boolean(row.readAt), notes: row.notes ?? "", reflection: row.reflection ?? "",
+    ideas: ideas.results.filter((idea) => idea.bastiaoId === row.id).map((idea) => ({
+      id: idea.id, text: idea.text, live: Boolean(idea.live), doneToday: logged.has(`${idea.id}:${today}`),
+      last7: days.map((day) => (logged.has(`${idea.id}:${day}`) ? 1 : 0)), daysLived: lived.get(idea.id) ?? 0,
+    })),
+  }));
+}
+
+/** This week's Bastiões and run of weeks, the archive, and the class in course. */
 export async function getSchoolOverview(userId: string, today = getSaoPauloDateKey()) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const [classes, habits] = await Promise.all([
+  const thisWeek = weekStart(today);
+  const [classes, habits, week, archive, weeksRead] = await Promise.all([
     db.prepare('SELECT id, date, title FROM "SchoolClass" WHERE userId = ? ORDER BY date DESC, createdAt DESC').bind(userId).all<{ id: string; date: string; title: string | null }>(),
     db.prepare('SELECT id, title FROM "HabitTemplate" WHERE userId = ? AND isActive = 1 ORDER BY title').bind(userId).all<{ id: string; title: string }>(),
+    loadBastioes(userId, "weekStart = ?", [thisWeek], today),
+    db.prepare(`SELECT b.id, b.weekStart, b.number, b.name, b.readAt, b.classId, (SELECT COUNT(*) FROM "BastiaoIdea" i WHERE i.bastiaoId = b.id) AS ideas
+      FROM "Bastiao" b WHERE b.userId = ? AND b.weekStart < ? ORDER BY b.weekStart DESC, COALESCE(b.number, 999999)`).bind(userId, thisWeek)
+      .all<{ id: string; weekStart: string; number: number | null; name: string; readAt: string | null; classId: string | null; ideas: number }>(),
+    db.prepare('SELECT weekStart, MAX(CASE WHEN readAt IS NOT NULL THEN 1 ELSE 0 END) AS read FROM "Bastiao" WHERE userId = ? GROUP BY weekStart ORDER BY weekStart').bind(userId).all<{ weekStart: string; read: number }>(),
   ]);
+  // Weeks with a Bastião read in a row; one missed week is forgiven.
+  const readWeeks = new Set(weeksRead.results.filter((row) => row.read).map((row) => row.weekStart));
+  const run: boolean[] = [];
+  for (let day = weeksRead.results[0]?.weekStart ?? thisWeek; day <= thisWeek; day = addDays(day, 7)) run.push(readWeeks.has(day));
   const current = classes.results.find((item) => item.date <= today) ?? classes.results.at(-1) ?? null;
   return {
     today,
+    weekStart: thisWeek,
+    week,
+    weekStreak: streaks(run).current,
+    archive: archive.results.map((row): BastiaoSummary => ({ id: row.id, weekStart: row.weekStart, number: row.number, name: row.name, read: Boolean(row.readAt), fromClass: Boolean(row.classId), ideas: Number(row.ideas) })),
     current: current ? await getSchoolClass(userId, current.id, today) : null,
     classes: classes.results.map((item) => ({ id: item.id, date: item.date, title: item.title ?? "" })),
     habits: habits.results,
   };
 }
 
+export async function getBastiao(userId: string, id: string, today = getSaoPauloDateKey()) {
+  await ensureSenderoSeeded();
+  return (await loadBastioes(userId, "id = ?", [id], today))[0] ?? null;
+}
+
+/** A class with its practices, and the Bastiões of its period (weekly ones and those it assigned). */
 export async function getSchoolClass(userId: string, id: string, today = getSaoPauloDateKey()): Promise<SchoolClass | null> {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
   const row = await db.prepare('SELECT id, date, title, notes, closing FROM "SchoolClass" WHERE id = ? AND userId = ?').bind(id, userId).first<ClassRow>();
   if (!row) return null;
   const days = lastDays(today);
-  const [next, bastioes, ideas, ideaLogs, practices] = await Promise.all([
-    db.prepare('SELECT date FROM "SchoolClass" WHERE userId = ? AND date > ? ORDER BY date LIMIT 1').bind(userId, row.date).first<{ date: string }>(),
-    db.prepare('SELECT id, classId, number, name, readAt, notes, reflection FROM "Bastiao" WHERE classId = ? AND userId = ? ORDER BY COALESCE(number, 999999), createdAt').bind(id, userId).all<BastiaoRow>(),
-    db.prepare('SELECT i.id, i.bastiaoId, i.text, i.live FROM "BastiaoIdea" i JOIN "Bastiao" b ON b.id = i.bastiaoId WHERE b.classId = ? AND i.userId = ? ORDER BY i.position, i.createdAt').bind(id, userId).all<IdeaRow>(),
-    db.prepare('SELECT l.ideaId, l.date FROM "IdeaLog" l JOIN "BastiaoIdea" i ON i.id = l.ideaId JOIN "Bastiao" b ON b.id = i.bastiaoId WHERE b.classId = ? AND l.userId = ? AND l.date >= ?').bind(id, userId, days[0]).all<{ ideaId: string; date: string }>(),
+  const next = await db.prepare('SELECT date FROM "SchoolClass" WHERE userId = ? AND date > ? ORDER BY date LIMIT 1').bind(userId, row.date).first<{ date: string }>();
+  const [bastioes, practices] = await Promise.all([
+    loadBastioes(userId, "classId = ? OR (weekStart >= ? AND weekStart < ?)", [id, weekStart(row.date), next ? weekStart(next.date) : "9999-12-31"], today),
     db.prepare('SELECT id, habitId, title, points FROM "ClassPractice" WHERE classId = ? AND userId = ? ORDER BY createdAt').bind(id, userId).all<{ id: string; habitId: string | null; title: string; points: string | null }>(),
   ]);
   const habitIds = practices.results.map((practice) => practice.habitId).filter((value): value is string => Boolean(value));
@@ -78,18 +129,9 @@ export async function getSchoolClass(userId: string, id: string, today = getSaoP
       if (info) info.logs.set(log.date.slice(0, 10), (info.logs.get(log.date.slice(0, 10)) ?? 0) + Number(log.count || log.minutes || 0));
     }
   }
-  const logged = new Set(ideaLogs.results.map((log) => `${log.ideaId}:${log.date}`));
-  const toIdea = (idea: IdeaRow): Idea => ({
-    id: idea.id, text: idea.text, live: Boolean(idea.live), doneToday: logged.has(`${idea.id}:${today}`),
-    last7: days.map((day) => (logged.has(`${idea.id}:${day}`) ? 1 : 0)),
-  });
   return {
     id: row.id, date: row.date, title: row.title ?? "", notes: row.notes ?? "", closing: row.closing ?? "", until: next?.date ?? null,
-    bastioes: bastioes.results.map((bastiao) => ({
-      id: bastiao.id, classId: bastiao.classId, number: bastiao.number, name: bastiao.name, read: Boolean(bastiao.readAt),
-      notes: bastiao.notes ?? "", reflection: bastiao.reflection ?? "",
-      ideas: ideas.results.filter((idea) => idea.bastiaoId === bastiao.id).map(toIdea),
-    })),
+    bastioes,
     practices: practices.results.map((practice) => {
       const info = practice.habitId ? habitInfo.get(practice.habitId) : null;
       return {
@@ -101,15 +143,11 @@ export async function getSchoolClass(userId: string, id: string, today = getSaoP
   };
 }
 
-/** Ideas chosen to live, from the class in course; shown in Hábitos and Início. */
-export async function getLiveIdeas(userId: string, today = getSaoPauloDateKey()): Promise<{ classId: string; ideas: LiveIdea[] } | null> {
+/** Ideas chosen to live this week; shown in Escola, Hábitos, Início and Diário. */
+export async function getLiveIdeas(userId: string, today = getSaoPauloDateKey()): Promise<{ ideas: LiveIdea[] }> {
   await ensureSenderoSeeded();
-  const current = await getSenderoDb().prepare('SELECT id FROM "SchoolClass" WHERE userId = ? AND date <= ? ORDER BY date DESC, createdAt DESC LIMIT 1').bind(userId, today).first<{ id: string }>();
-  if (!current) return null;
-  const detail = await getSchoolClass(userId, current.id, today);
-  if (!detail) return null;
-  const ideas = detail.bastioes.flatMap((bastiao) => bastiao.ideas.filter((idea) => idea.live).map((idea) => ({ id: idea.id, text: idea.text, bastiao: bastiaoLabel(bastiao), doneToday: idea.doneToday, last7: idea.last7 })));
-  return { classId: current.id, ideas };
+  const week = await loadBastioes(userId, "weekStart = ?", [weekStart(today)], today);
+  return { ideas: week.flatMap((bastiao) => bastiao.ideas.filter((idea) => idea.live).map((idea) => ({ id: idea.id, text: idea.text, bastiao: bastiaoLabel(bastiao), doneToday: idea.doneToday, last7: idea.last7 }))) };
 }
 
 export async function createClass(userId: string, input: { date?: unknown; title?: unknown }) {
@@ -147,17 +185,19 @@ export async function deleteClass(userId: string, id: string) {
   ]);
 }
 
-export async function createBastiao(userId: string, input: { classId?: unknown; number?: unknown; name?: unknown }) {
+/** The week's Bastião (this week unless another week is given); "veio da aula" links it to the class in course. */
+export async function createBastiao(userId: string, input: { weekStart?: unknown; number?: unknown; name?: unknown; fromClass?: unknown }) {
   await ensureSenderoSeeded();
   const name = text(input.name, 200);
   if (!name) throw new Error("Informe o nome do Bastião.");
-  if (typeof input.classId !== "string") throw new Error("Aula não informada.");
-  await own("SchoolClass", input.classId, userId);
+  const today = getSaoPauloDateKey();
+  const classId = input.fromClass ? await currentClassId(userId, today) : null;
+  if (input.fromClass && !classId) throw new Error("Registre a aula antes de ligar o Bastião a ela.");
   const number = Number(input.number);
   const id = newId("bastiao");
   const now = new Date().toISOString();
-  await getSenderoDb().prepare('INSERT INTO "Bastiao" (id, userId, classId, number, name, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, userId, input.classId, Number.isInteger(number) && number > 0 ? number : null, name, now, now).run();
+  await getSenderoDb().prepare('INSERT INTO "Bastiao" (id, userId, weekStart, classId, number, name, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, userId, weekStart(isDate(input.weekStart) ? input.weekStart : today), classId, Number.isInteger(number) && number > 0 ? number : null, name, now, now).run();
   return { id };
 }
 
@@ -170,6 +210,11 @@ export async function updateBastiao(userId: string, id: string, input: Record<st
   if ("name" in input) { const name = text(input.name, 200); if (!name) throw new Error("Informe o nome do Bastião."); updates.push(db.prepare('UPDATE "Bastiao" SET name = ? WHERE id = ?').bind(name, id)); }
   if ("number" in input) { const number = Number(input.number); updates.push(db.prepare('UPDATE "Bastiao" SET number = ? WHERE id = ?').bind(Number.isInteger(number) && number > 0 ? number : null, id)); }
   if ("read" in input) updates.push(db.prepare('UPDATE "Bastiao" SET readAt = ? WHERE id = ?').bind(input.read ? now : null, id));
+  if ("fromClass" in input) {
+    const classId = input.fromClass ? await currentClassId(userId, getSaoPauloDateKey()) : null;
+    if (input.fromClass && !classId) throw new Error("Registre a aula antes de ligar o Bastião a ela.");
+    updates.push(db.prepare('UPDATE "Bastiao" SET classId = ? WHERE id = ?').bind(classId, id));
+  }
   if ("notes" in input) updates.push(db.prepare('UPDATE "Bastiao" SET notes = ? WHERE id = ?').bind(text(input.notes) || null, id));
   if ("reflection" in input) updates.push(db.prepare('UPDATE "Bastiao" SET reflection = ? WHERE id = ?').bind(text(input.reflection) || null, id));
   updates.push(db.prepare('UPDATE "Bastiao" SET updatedAt = ? WHERE id = ?').bind(now, id));
@@ -200,7 +245,7 @@ export async function addIdea(userId: string, bastiaoId: string, input: { text?:
   return { id };
 }
 
-/** Edits an idea; choosing it to live is limited to three per class. */
+/** Edits an idea; choosing it to live is limited to three per week. */
 export async function updateIdea(userId: string, id: string, input: { text?: unknown; live?: unknown }) {
   await ensureSenderoSeeded();
   await own("BastiaoIdea", id, userId);
@@ -214,9 +259,9 @@ export async function updateIdea(userId: string, id: string, input: { text?: unk
     if (input.live) {
       const count = await db.prepare(`
         SELECT COUNT(*) AS n FROM "BastiaoIdea" i JOIN "Bastiao" b ON b.id = i.bastiaoId
-        WHERE i.live = 1 AND i.id <> ? AND b.classId = (SELECT b2.classId FROM "BastiaoIdea" i2 JOIN "Bastiao" b2 ON b2.id = i2.bastiaoId WHERE i2.id = ?)
-      `).bind(id, id).first<{ n: number }>();
-      if (Number(count?.n ?? 0) >= MAX_LIVE_IDEAS) throw new Error(`Escolha no máximo ${MAX_LIVE_IDEAS} ideias para viver por aula.`);
+        WHERE i.live = 1 AND i.id <> ? AND b.userId = ? AND b.weekStart = (SELECT b2.weekStart FROM "BastiaoIdea" i2 JOIN "Bastiao" b2 ON b2.id = i2.bastiaoId WHERE i2.id = ?)
+      `).bind(id, userId, id).first<{ n: number }>();
+      if (Number(count?.n ?? 0) >= MAX_LIVE_IDEAS) throw new Error(`Escolha no máximo ${MAX_LIVE_IDEAS} ideias para viver por semana.`);
     }
     await db.prepare('UPDATE "BastiaoIdea" SET live = ? WHERE id = ?').bind(input.live ? 1 : 0, id).run();
   }

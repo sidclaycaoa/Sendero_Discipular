@@ -47,9 +47,9 @@ export function LeituraScreen({ data, weeklyGoal }: { data: Overview; weeklyGoal
 
       <Link prefetch={false} href="/escola" className="mt-3 flex items-center gap-3 rounded-2xl border border-line bg-white p-3.5 shadow-soft">
         <span className="min-w-0 flex-1">
-          <span className="block text-[11px] font-bold uppercase tracking-wide text-clay">Bastiões da aula</span>
+          <span className="block text-[11px] font-bold uppercase tracking-wide text-clay">Bastião da semana</span>
           {data.bastioes.length ? data.bastioes.map((bastiao) => <span key={bastiao.label} className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">{bastiao.read ? <Check className="h-3.5 w-3.5 text-moss" aria-label="lido" /> : <span className="h-1.5 w-1.5 rounded-full bg-clay" aria-label="a ler" />}{bastiao.label}</span>)
-            : <span className="mt-0.5 block text-sm text-ink/60">Registre a aula e o Bastião na Escola</span>}
+            : <span className="mt-0.5 block text-sm text-ink/60">Registre o Bastião desta semana na Escola</span>}
         </span>
         <ChevronRight className="h-4 w-4 shrink-0 text-ink/35" aria-hidden="true" />
       </Link>

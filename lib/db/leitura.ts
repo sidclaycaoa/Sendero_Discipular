@@ -76,10 +76,9 @@ export async function getReadingOverview(userId: string, today = getSaoPauloDate
     db.prepare('SELECT id, itemId, date, minutes, fromPage, toPage FROM "ReadingSession" WHERE userId = ? AND date >= ? ORDER BY date').bind(userId, since).all<SessionRow>(),
     db.prepare(`SELECT q.id, q.itemId, i.title AS itemTitle, q.text, q.page, q.note, q.createdAt FROM "ReadingQuote" q JOIN "ReadingItem" i ON i.id = q.itemId
       WHERE q.userId = ? AND i.archivedAt IS NULL ORDER BY q.createdAt DESC LIMIT 3`).bind(userId).all<ReadingQuote>(),
-    // Bastiões of the class in course (they live in Escola).
-    db.prepare(`SELECT b.number, b.name, b.readAt FROM "Bastiao" b WHERE b.userId = ? AND b.classId = (
-      SELECT id FROM "SchoolClass" WHERE userId = ? AND date <= ? ORDER BY date DESC, createdAt DESC LIMIT 1) ORDER BY COALESCE(b.number, 999999)`)
-      .bind(userId, userId, today).all<{ number: number | null; name: string; readAt: string | null }>(),
+    // This week's Bastiões (they live in Escola).
+    db.prepare('SELECT number, name, readAt FROM "Bastiao" WHERE userId = ? AND weekStart = ? ORDER BY COALESCE(number, 999999)')
+      .bind(userId, weekStart(today)).all<{ number: number | null; name: string; readAt: string | null }>(),
   ]);
   const all = items.results.map((row) => toItem(row, sessions.results, today));
   // Percent progress (texts without pages) is not pages read.
