@@ -3,8 +3,9 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Check, Clock3, Flame, Minus, Pencil, Play, Plus, Settings2, Trash2, X } from "lucide-react";
+import { Bell, Check, Clock3, Flame, Minus, Pencil, Play, Plus, Settings2, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
+import { Sheet } from "@/components/app/Sheet";
 import { HabitConfigModal } from "@/components/habitos/HabitConfigModal";
 import type { DayPeriod, DbHabit, HabitDashboard } from "@/lib/db/sendero";
 import { DEFAULT_ML_PER_KG, FLAME_TIERS, flameTier, waterGoal } from "@/lib/habit-streak";
@@ -264,17 +265,6 @@ function WaterRow({ waterMl, goalMl, onAdd, onMore, onSettings }: { waterMl: num
       </div>
       <button type="button" onClick={() => onAdd(GLASS_ML)} aria-label="Mais um copo de 250 ml" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500 text-white"><Plus className="h-5 w-5" /></button>
     </section>
-  );
-}
-
-function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/35" onClick={onClose}>
-      <div role="dialog" aria-label={title} className="max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-soft" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3"><h2 className="text-lg font-semibold text-ink">{title}</h2><button type="button" className="rounded-md border border-line p-2" onClick={onClose} aria-label="Fechar"><X className="h-4 w-4" /></button></div>
-        {children}
-      </div>
-    </div>
   );
 }
 
