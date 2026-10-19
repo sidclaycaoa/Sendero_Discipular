@@ -38,12 +38,12 @@ test("the Caderno keeps notebooks, sections and pages, never loses a text and fi
   // The first visit creates the suggested notebooks; the bottom menu now has the Caderno in place of the Diário.
   let page = await get("/caderno");
   assert.equal(page.status, 200);
-  assert.match(page.text, /Escola do Discipulado .*Leituras .*Aulas .*Vida e trabalho .*Caixa de entrada/);
+  assert.match(page.text, /Escola do Discipulado .*Leituras .*Aulas .*Vida e trabalho .*Frases e passagens 0 frases .*Caixa de entrada/);
   assert.match(page.text, /Início Refletir Hábitos Agenda Caderno/);
   assert.ok(!/Agenda Diário/.test(page.text));
-  assert.equal(count('SELECT COUNT(*) AS n FROM "Notebook"'), 5);
+  assert.equal(count('SELECT COUNT(*) AS n FROM "Notebook"'), 6);
   await get("/caderno");
-  assert.equal(count('SELECT COUNT(*) AS n FROM "Notebook"'), 5, "visiting again does not duplicate");
+  assert.equal(count('SELECT COUNT(*) AS n FROM "Notebook"'), 6, "visiting again does not duplicate");
 
   // Notebook → section → page → subpage.
   const notebook = await act({ action: "createNotebook", name: "Estudos", color: "#2f5d62" });

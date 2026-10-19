@@ -9,6 +9,7 @@ type Archive = {
   notebooks: Array<{ id: string; name: string; color: string; archivedAt: string }>;
   sections: Array<{ id: string; name: string; archivedAt: string; notebook: string; color: string }>;
   pages: Array<{ id: string; title: string; preview: string; archivedAt: string; notebook: string; color: string }>;
+  phrases: Array<{ id: string; text: string; who: string; archivedAt: string }>;
 };
 
 /** What was archived: it comes back with one tap; deleting a page for good asks first. */
@@ -16,17 +17,21 @@ export function ArchiveList({ archive }: { archive: Archive }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  async function run(body: Record<string, unknown>) {
+  async function run(body: Record<string, unknown>, endpoint = "/api/caderno") {
     setError(null);
     try {
-      await cadernoAction(body);
+      if (endpoint === "/api/caderno") await cadernoAction(body);
+      else {
+        const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!response.ok) throw new Error(((await response.json().catch(() => ({}))) as { error?: string }).error ?? "Não foi possível salvar agora.");
+      }
       setConfirming(null);
       router.refresh();
     } catch (failure) {
       setError((failure as Error).message);
     }
   }
-  const empty = !archive.notebooks.length && !archive.sections.length && !archive.pages.length;
+  const empty = !archive.notebooks.length && !archive.sections.length && !archive.pages.length && !archive.phrases.length;
   const row = "flex items-center gap-3 rounded-xl border border-line bg-white p-3";
   const restore = "shrink-0 rounded-lg border border-line px-3 py-2 text-[13px] font-semibold text-moss";
   return (
@@ -71,6 +76,28 @@ export function ArchiveList({ archive }: { archive: Archive }) {
                   <p className="font-semibold">Apagar “{item.title}” de vez? O texto e as versões anteriores somem e não há como recuperar.</p>
                   <div className="mt-2 flex gap-2">
                     <button type="button" onClick={() => run({ action: "deletePage", id: item.id, confirm: true })} className="min-h-10 rounded-lg bg-red-800 px-3 text-sm font-semibold text-white">Sim, apagar de vez</button>
+                    <button type="button" onClick={() => setConfirming(null)} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-semibold">Cancelar</button>
+                  </div>
+                </div>
+              ) : <button type="button" onClick={() => setConfirming(item.id)} className="mt-2 text-xs font-semibold text-red-800">Apagar de vez…</button>}
+            </div>
+          ))}
+        </section>
+      ) : null}
+      {archive.phrases.length ? (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink/60">Frases</h2>
+          {archive.phrases.map((item) => (
+            <div key={item.id} className="rounded-xl border border-line bg-white p-3">
+              <div className="flex items-center gap-3">
+                <span className="min-w-0 flex-1"><strong className="block truncate text-sm font-semibold">{item.text}</strong><small className="text-xs text-ink/55">{item.who} · arquivada {whenEdited(item.archivedAt)}</small></span>
+                <button type="button" className={restore} onClick={() => run({ action: "archive", id: item.id, archived: false }, "/api/frases")}>Trazer de volta</button>
+              </div>
+              {confirming === item.id ? (
+                <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-950">
+                  <p className="font-semibold">Apagar esta frase de vez? Não há como recuperar.</p>
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" onClick={() => run({ action: "delete", id: item.id, confirm: true }, "/api/frases")} className="min-h-10 rounded-lg bg-red-800 px-3 text-sm font-semibold text-white">Sim, apagar de vez</button>
                     <button type="button" onClick={() => setConfirming(null)} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-semibold">Cancelar</button>
                   </div>
                 </div>

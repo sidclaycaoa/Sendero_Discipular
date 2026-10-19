@@ -2,11 +2,15 @@
 
 export const NOTEBOOK_COLORS = ["#5b4a8a", "#8a6d3b", "#3f6577", "#7a5a4e", "#46533b", "#9a4f3a", "#2f5d62", "#8a8d89"];
 
-export const DEFAULT_NOTEBOOKS: Array<{ name: string; color: string; kind: "NORMAL" | "ENTRADA" }> = [
+/** The special notebook of phrases: black, like the cover of a commonplace book. */
+export const FRASES_COLOR = "#1d1a17";
+
+export const DEFAULT_NOTEBOOKS: Array<{ name: string; color: string; kind: "NORMAL" | "ENTRADA" | "FRASES" }> = [
   { name: "Escola do Discipulado", color: "#5b4a8a", kind: "NORMAL" },
   { name: "Leituras", color: "#8a6d3b", kind: "NORMAL" },
   { name: "Aulas", color: "#3f6577", kind: "NORMAL" },
   { name: "Vida e trabalho", color: "#7a5a4e", kind: "NORMAL" },
+  { name: "Frases e passagens", color: FRASES_COLOR, kind: "FRASES" },
   { name: "Caixa de entrada", color: "#8a8d89", kind: "ENTRADA" },
 ];
 

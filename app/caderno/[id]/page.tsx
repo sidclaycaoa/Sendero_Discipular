@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app/AppShell";
 import { NotebookScreen } from "@/components/caderno/NotebookScreen";
 import { getActiveUser } from "@/lib/db/sendero";
@@ -11,5 +11,6 @@ export default async function NotebookPage({ params }: { params: Promise<{ id: s
   if (!user) notFound();
   const data = await getNotebook(user.id, (await params).id);
   if (!data) notFound();
+  if (data.notebook.kind === "FRASES") redirect("/caderno/frases");
   return <AppShell><NotebookScreen {...data} /></AppShell>;
 }

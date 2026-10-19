@@ -214,7 +214,7 @@ export function PageEditor({ page, notebook, section, parent, children, versions
           backHref={parent ? `/caderno/pagina/${parent.id}` : `/caderno/${notebook.id}`}
         />
       ) : null}
-      {sheet === "move" ? <MoveSheet pageId={page.id} notebookId={page.notebookId} sectionId={page.sectionId} notebooks={notebooks} sections={sections} beforeMove={() => flush()} onClose={() => setSheet(null)} /> : null}
+      {sheet === "move" ? <MoveSheet pageId={page.id} notebookId={page.notebookId} sectionId={page.sectionId} notebooks={notebooks.filter((item) => item.kind !== "FRASES")} sections={sections} beforeMove={() => flush()} onClose={() => setSheet(null)} /> : null}
       {sheet === "versions" ? <VersionsSheet pageId={page.id} beforeRestore={() => flush()} onClose={() => setSheet(null)} onRestored={() => { setSheet(null); router.refresh(); }} /> : null}
     </div>
   );

@@ -1,67 +1,55 @@
 "use client";
 
 import { useEffect } from "react";
+import { holdScreen } from "@/lib/screen-awake";
 
-// Dictation can run for minutes without a touch; keep the screen on for this long after the last keystroke.
-const IDLE_MS = 3 * 60 * 1000;
-
-type Sentinel = { release: () => Promise<void> };
-type WakeLockApi = { request: (type: "screen") => Promise<Sentinel> };
+// Same limit as the PIN lock (LOCK_AFTER_MS in worker/auth.ts): while writing or dictating,
+// the screen stays on until this long passes without a keystroke.
+const IDLE_MS = 5 * 60 * 1000;
 
 const isWritingField = (target: EventTarget | null) =>
-  target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type === "text") || (target instanceof HTMLElement && target.isContentEditable);
+  target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && (target.type === "text" || target.type === "search")) || (target instanceof HTMLElement && target.isContentEditable);
 
 /**
- * While text is being written (typed or dictated), asks the phone not to dim
- * the screen. The installed app goes to sleep like any app, unlike a browser
- * tab, so dictating a reflection would otherwise stop after ~30 s.
+ * While text is being written or dictated (Diário, reflections, Caderno…), keeps
+ * the phone from dimming the screen. It uses the same means as the practices
+ * (wake lock plus a silent video, which works in the installed iPhone app where
+ * the wake lock alone fails) and lets the screen sleep after 5 minutes without
+ * typing. It starts on the tap into a text field, the only moment the phone allows it.
  */
 export function KeepAwake() {
   useEffect(() => {
-    const wakeLock = (navigator as unknown as { wakeLock?: WakeLockApi }).wakeLock;
-    if (!wakeLock) return;
-    let sentinel: Sentinel | null = null;
-    let requesting = false;
-    let lastWriting = 0;
+    let release: (() => void) | null = null;
     let idleTimer: number | undefined;
 
-    async function hold() {
-      if (sentinel || requesting || document.visibilityState !== "visible") return;
-      requesting = true;
-      try {
-        sentinel = await wakeLock!.request("screen");
-        (sentinel as unknown as EventTarget).addEventListener?.("release", () => { sentinel = null; });
-      } catch { sentinel = null; }
-      requesting = false;
-    }
     function letGo() {
-      void sentinel?.release().catch(() => undefined);
-      sentinel = null;
+      release?.();
+      release = null;
     }
-    function onWriting(event: Event) {
-      if (!isWritingField(event.target)) return;
-      lastWriting = Date.now();
-      void hold();
+    function keep() {
       window.clearTimeout(idleTimer);
       idleTimer = window.setTimeout(letGo, IDLE_MS);
     }
-    function onVisible() {
-      // The system drops the lock when the app is hidden; take it back if writing was recent.
-      if (document.visibilityState === "visible" && Date.now() - lastWriting < IDLE_MS) void hold();
+    function onTap(event: Event) {
+      if (!isWritingField(event.target)) return;
+      release ??= holdScreen();
+      keep();
     }
-    function onBlur(event: FocusEvent) {
-      if (isWritingField(event.target) && !isWritingField(event.relatedTarget)) { window.clearTimeout(idleTimer); idleTimer = window.setTimeout(letGo, 30_000); }
+    function onWriting(event: Event) {
+      if (!isWritingField(event.target)) return;
+      // Dictation and typing only extend the time; starting needs the tap (see onTap).
+      if (release) keep();
     }
 
-    document.addEventListener("focusin", onWriting);
+    document.addEventListener("pointerdown", onTap, true);
+    document.addEventListener("focusin", onTap);
     document.addEventListener("input", onWriting);
-    document.addEventListener("focusout", onBlur);
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener("keydown", onWriting);
     return () => {
-      document.removeEventListener("focusin", onWriting);
+      document.removeEventListener("pointerdown", onTap, true);
+      document.removeEventListener("focusin", onTap);
       document.removeEventListener("input", onWriting);
-      document.removeEventListener("focusout", onBlur);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("keydown", onWriting);
       window.clearTimeout(idleTimer);
       letGo();
     };
