@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookPen, Sparkles } from "lucide-react";
+import { BookOpenText, CalendarCheck2, CheckSquare2, Home, LoaderCircle, NotebookTabs, Sparkles } from "lucide-react";
 import { DailyTonicStrip } from "@/components/app/DailyTonicStrip";
 import { FeedbackButton } from "@/components/app/FeedbackButton";
 import { KeepAwake } from "@/components/app/KeepAwake";
@@ -14,7 +14,7 @@ const navItems = [
   { href: "/refletir", label: "Refletir", icon: BookOpenText },
   { href: "/habitos", label: "Hábitos", icon: CheckSquare2 },
   { href: "/tarefas", label: "Agenda", icon: CalendarCheck2 },
-  { href: "/diario", label: "Diário", icon: NotebookPen }
+  { href: "/caderno", label: "Caderno", icon: NotebookTabs }
 ];
 
 // After this long in the background the app reopens on Início, like a native app.
@@ -22,7 +22,7 @@ const RETURN_HOME_AFTER_MS = 30 * 60 * 1000;
 
 /** Screens where the user may be mid-writing; never navigate away from them. */
 function isWritingScreen(pathname: string) {
-  return pathname === "/diario" || pathname === "/configuracoes" || pathname === "/jornada" || pathname.startsWith("/leitura") || pathname.startsWith("/memorizar") || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
+  return pathname === "/diario" || pathname === "/configuracoes" || pathname === "/jornada" || pathname.startsWith("/caderno/pagina") || pathname.startsWith("/leitura") || pathname.startsWith("/memorizar") || /^\/refletir\/(?!organizar$)[^/]+$/.test(pathname);
 }
 
 export function AppShell({ children, showDailyTonic = true }: { children: ReactNode; showDailyTonic?: boolean }) {
