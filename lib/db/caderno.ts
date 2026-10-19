@@ -1,5 +1,5 @@
 import { ensureSenderoSeeded, getSenderoDb } from "@/lib/db/d1";
-import { DEFAULT_NOTEBOOKS, MARK_START, NOTEBOOK_COLORS, preview } from "@/lib/caderno-shared";
+import { DEFAULT_NOTEBOOKS, FRASES_COLOR, MARK_START, NOTEBOOK_COLORS, preview } from "@/lib/caderno-shared";
 
 /**
  * Caderno: notebooks → sections → pages (one level of subpages). Pages save
@@ -14,7 +14,7 @@ export type NoteSection = { id: string; notebookId: string; name: string; positi
 export type NotePageSummary = { id: string; notebookId: string; sectionId: string | null; parentId: string | null; title: string; preview: string; position: number; updatedAt: string };
 export type NotePage = NotePageSummary & { content: string | null; plainText: string; archivedAt: string | null; createdAt: string };
 export type NotebookCard = Notebook & { sections: number; pages: number };
-export type SearchHit = { kind: "PAGINA" | "REFLEXAO" | "DIARIO"; id: string; title: string; snippet: string; href: string | null; place: string; color: string | null };
+export type SearchHit = { kind: "PAGINA" | "FRASE" | "REFLEXAO" | "DIARIO"; id: string; title: string; snippet: string; href: string | null; place: string; color: string | null };
 
 const MAX_TITLE = 300;
 const MAX_CONTENT = 900_000;
@@ -34,9 +34,16 @@ const requireId = (value: unknown, what: string) => {
 async function ensureNotebooks(userId: string) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const existing = await db.prepare('SELECT COUNT(*) AS n FROM "Notebook" WHERE userId = ?').bind(userId).first<{ n: number }>();
-  if (Number(existing?.n ?? 0) > 0) return;
+  const existing = await db.prepare('SELECT COUNT(*) AS n, SUM(kind = \'FRASES\') AS frases, COALESCE(MAX(position), -1) AS last FROM "Notebook" WHERE userId = ?').bind(userId).first<{ n: number; frases: number | null; last: number }>();
   const now = nowIso();
+  if (Number(existing?.n ?? 0) > 0) {
+    // Notebooks created before the Frases existed gain the special notebook once.
+    if (!Number(existing?.frases ?? 0)) {
+      await db.prepare('INSERT INTO "Notebook" (id, userId, name, color, kind, position, createdAt, updatedAt) VALUES (?, ?, \'Frases e passagens\', ?, \'FRASES\', ?, ?, ?)')
+        .bind(id("nb"), userId, FRASES_COLOR, Number(existing?.last ?? 0) + 1, now, now).run();
+    }
+    return;
+  }
   await db.batch(DEFAULT_NOTEBOOKS.map((notebook, index) => db.prepare('INSERT INTO "Notebook" (id, userId, name, color, kind, position, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id("nb"), userId, notebook.name, notebook.color, notebook.kind, index, now, now)));
 }
@@ -48,7 +55,8 @@ export async function getCadernoHome(userId: string) {
     db.prepare(`
       SELECT n.id, n.name, n.color, n.kind, n.position, n.archivedAt, n.updatedAt,
         (SELECT COUNT(*) FROM "NoteSection" s WHERE s.notebookId = n.id AND s.archivedAt IS NULL) AS sections,
-        (SELECT COUNT(*) FROM "NotePage" p WHERE p.notebookId = n.id AND p.archivedAt IS NULL) AS pages
+        CASE WHEN n.kind = 'FRASES' THEN (SELECT COUNT(*) FROM "Passage" f WHERE f.userId = n.userId AND f.archivedAt IS NULL)
+          ELSE (SELECT COUNT(*) FROM "NotePage" p WHERE p.notebookId = n.id AND p.archivedAt IS NULL) END AS pages
       FROM "Notebook" n WHERE n.userId = ? AND n.archivedAt IS NULL ORDER BY n.position, n.createdAt
     `).bind(userId).all<NotebookCard>(),
     db.prepare(`
@@ -60,7 +68,8 @@ export async function getCadernoHome(userId: string) {
     db.prepare(`
       SELECT (SELECT COUNT(*) FROM "NotePage" WHERE userId = ?1 AND archivedAt IS NOT NULL)
            + (SELECT COUNT(*) FROM "NoteSection" WHERE userId = ?1 AND archivedAt IS NOT NULL)
-           + (SELECT COUNT(*) FROM "Notebook" WHERE userId = ?1 AND archivedAt IS NOT NULL) AS n
+           + (SELECT COUNT(*) FROM "Notebook" WHERE userId = ?1 AND archivedAt IS NOT NULL)
+           + (SELECT COUNT(*) FROM "Passage" WHERE userId = ?1 AND archivedAt IS NOT NULL) AS n
     `).bind(userId).first<{ n: number }>(),
   ]);
   return {
@@ -152,18 +161,20 @@ export async function search(userId: string, input: string, everywhere: boolean)
   if (everywhere) await refreshWritings(userId);
   const rows = await db.prepare(`
     SELECT kind, refId, title, snippet("SearchIndex", 4, char(2), char(3), '…', 14) AS body, snippet("SearchIndex", 3, char(2), char(3), '…', 14) AS heading
-    FROM "SearchIndex" WHERE "SearchIndex" MATCH ? AND userId = ? ${everywhere ? "" : "AND kind = 'PAGINA'"}
+    FROM "SearchIndex" WHERE "SearchIndex" MATCH ? AND userId = ? ${everywhere ? "" : "AND kind IN ('PAGINA', 'FRASE')"}
     ORDER BY rank LIMIT 80
   `).bind(query, userId).all<{ kind: SearchHit["kind"]; refId: string; title: string; body: string; heading: string }>();
   const pageIds = rows.results.filter((row) => row.kind === "PAGINA").map((row) => row.refId);
+  const phraseIds = rows.results.filter((row) => row.kind === "FRASE").map((row) => row.refId);
   const reflectionIds = rows.results.filter((row) => row.kind === "REFLEXAO").map((row) => row.refId);
   const diaryIds = rows.results.filter((row) => row.kind === "DIARIO").map((row) => row.refId);
   const marks = (count: number) => Array.from({ length: count }, () => "?").join(",") || "''";
-  const [pages, reflections, diaries] = await Promise.all([
+  const [pages, phrases, reflections, diaries] = await Promise.all([
     pageIds.length ? db.prepare(`
       SELECT p.id, n.name AS notebook, n.color, s.name AS section FROM "NotePage" p JOIN "Notebook" n ON n.id = p.notebookId LEFT JOIN "NoteSection" s ON s.id = p.sectionId
       WHERE p.id IN (${marks(pageIds.length)}) AND p.archivedAt IS NULL AND n.archivedAt IS NULL AND (s.id IS NULL OR s.archivedAt IS NULL)
     `).bind(...pageIds).all<{ id: string; notebook: string; color: string; section: string | null }>() : Promise.resolve({ results: [] }),
+    phraseIds.length ? db.prepare(`SELECT id, kind, author, work, location FROM "Passage" WHERE id IN (${marks(phraseIds.length)}) AND archivedAt IS NULL`).bind(...phraseIds).all<{ id: string; kind: string; author: string | null; work: string | null; location: string | null }>() : Promise.resolve({ results: [] }),
     reflectionIds.length ? db.prepare(`SELECT id, templateId, substr(date, 1, 10) AS date FROM "ReflectionEntry" WHERE id IN (${marks(reflectionIds.length)})`).bind(...reflectionIds).all<{ id: string; templateId: string; date: string }>() : Promise.resolve({ results: [] }),
     diaryIds.length ? db.prepare(`SELECT id, substr(date, 1, 10) AS date FROM "DiaryEntry" WHERE id IN (${marks(diaryIds.length)})`).bind(...diaryIds).all<{ id: string; date: string }>() : Promise.resolve({ results: [] }),
   ]);
@@ -173,6 +184,9 @@ export async function search(userId: string, input: string, everywhere: boolean)
     if (row.kind === "PAGINA") {
       const page = (pages.results as Array<{ id: string; notebook: string; color: string; section: string | null }>).find((item) => item.id === row.refId);
       if (page) hits.push({ kind: "PAGINA", id: row.refId, title: row.title || UNTITLED, snippet, href: `/caderno/pagina/${row.refId}`, place: [page.notebook, page.section].filter(Boolean).join(" › "), color: page.color });
+    } else if (row.kind === "FRASE") {
+      const phrase = (phrases.results as Array<{ id: string; kind: string; author: string | null; work: string | null; location: string | null }>).find((item) => item.id === row.refId);
+      if (phrase) hits.push({ kind: "FRASE", id: row.refId, title: phrase.kind === "LITERAL" ? phrase.author ?? "Citação" : "Minha síntese", snippet, href: `/caderno/frases#${row.refId}`, place: phrase.kind === "LITERAL" ? [phrase.work, phrase.location].filter(Boolean).join(" · ") : "Frases e passagens", color: FRASES_COLOR });
     } else if (row.kind === "REFLEXAO") {
       const entry = (reflections.results as Array<{ id: string; templateId: string; date: string }>).find((item) => item.id === row.refId);
       if (entry) hits.push({ kind: "REFLEXAO", id: row.refId, title: row.title, snippet, href: `/refletir/${entry.templateId}?date=${entry.date}`, place: `Reflexão · ${shortDate(entry.date)}`, color: null });
@@ -238,6 +252,7 @@ async function nextPosition(table: "Notebook" | "NoteSection" | "NotePage", colu
 async function ownedNotebook(userId: string, notebookId: unknown) {
   const row = await getSenderoDb().prepare('SELECT id, kind FROM "Notebook" WHERE id = ? AND userId = ?').bind(requireId(notebookId, "Caderno"), userId).first<{ id: string; kind: string }>();
   if (!row) throw new Error("Caderno não encontrado.");
+  if (row.kind === "FRASES") throw new Error("O caderno de frases guarda frases, não páginas. Use “+ Nova frase” nele.");
   return row;
 }
 

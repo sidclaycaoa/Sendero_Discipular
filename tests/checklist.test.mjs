@@ -105,7 +105,10 @@ test("the recovery queue shows the current month and can include the previous on
   const home = await text("/inicio");
   assert.match(home, /Atendimento às reflexões/);
   assert.match(home, /meta 90 ?%/);
-  assert.match(home, /Faltam 8 reflex/);
+  // Blocks of two days: the ones already over this month, all unanswered; the goal is 90% of them.
+  const blocksOver = Math.floor((Number(today.slice(8, 10)) - 1) / 2);
+  if (blocksOver) assert.match(home, new RegExp(`Faltam ${Math.ceil(blocksOver * 0.9)} reflex`));
+  else assert.match(home, /Nenhum bloco do mês terminou ainda/);
   void today;
 });
 

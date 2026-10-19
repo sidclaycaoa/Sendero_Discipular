@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bug, CheckCircle2, Lightbulb, RotateCcw } from "lucide-react";
+import { Bug, CheckCircle2, Copy, Lightbulb, RotateCcw } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
 import type { AppFeedback } from "@/lib/db/pendencias";
 
@@ -30,7 +30,10 @@ export function FeedbackList({ items }: { items: AppFeedback[] }) {
   return (
     <>
       {error ? <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
-      <h2 className="mt-6 text-lg font-semibold text-ink">Abertas · {open.length}</h2>
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-ink">Abertas · {open.length}</h2>
+        {open.length ? <CopyAll items={open} /> : null}
+      </div>
       <div className="mt-3 space-y-3">
         {open.length ? open.map((item) => (
           <Card key={item.id}>
@@ -57,6 +60,42 @@ export function FeedbackList({ items }: { items: AppFeedback[] }) {
             ))}
           </div>
         </details>
+      ) : null}
+    </>
+  );
+}
+
+/** The open items as one text, ready to paste in a conversation. */
+function feedbackText(items: AppFeedback[]) {
+  const header = `Pendências do Sendero · ${items.length} aberta${items.length === 1 ? "" : "s"} · ${formatDate(new Date().toISOString())}`;
+  const lines = items.map((item, index) => `${index + 1}. [${item.kind === "BUG" ? "Bug" : "Melhoria"}] ${formatDate(item.createdAt)}${item.page ? ` · tela ${item.page}` : ""}\n${item.description.trim()}`);
+  return [header, ...lines].join("\n\n");
+}
+
+function CopyAll({ items }: { items: AppFeedback[] }) {
+  const [state, setState] = useState<"idle" | "copied" | "manual">("idle");
+  const text = feedbackText(items);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setState("copied");
+      window.setTimeout(() => setState("idle"), 2500);
+    } catch {
+      // Some app views refuse the clipboard: show the text selected, to copy by hand.
+      setState("manual");
+    }
+  }
+  return (
+    <>
+      <button type="button" onClick={copy} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-moss">
+        <Copy className="h-4 w-4" aria-hidden="true" /> {state === "copied" ? "Copiado ✓" : "Copiar todas"}
+      </button>
+      {state === "manual" ? (
+        <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-line bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-soft">
+          <p className="text-sm font-semibold text-ink">O iPhone não deixou copiar sozinho. O texto já está selecionado: toque em Copiar.</p>
+          <textarea readOnly autoFocus value={text} onFocus={(event) => event.currentTarget.select()} rows={6} className="mt-2 w-full rounded-lg border border-line bg-paper p-2 text-sm" aria-label="Pendências abertas" />
+          <button type="button" onClick={() => setState("idle")} className="mt-2 min-h-10 rounded-lg border border-line px-3 text-sm font-semibold">Fechar</button>
+        </div>
       ) : null}
     </>
   );

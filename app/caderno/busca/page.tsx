@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const GROUPS: Array<{ kind: SearchHit["kind"]; label: string }> = [
   { kind: "PAGINA", label: "Páginas do Caderno" },
+  { kind: "FRASE", label: "Frases" },
   { kind: "REFLEXAO", label: "Reflexões" },
   { kind: "DIARIO", label: "Diário" },
 ];

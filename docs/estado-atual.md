@@ -12,7 +12,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   4. o **usuário faz o merge**;
   5. o Cloudflare Workers Builds publica sozinho a partir do `main`.
 - **Banco D1 `sendero-discipular`** (id `8eecf873-d8f3-44ff-b72c-74d9d573dcd1`):
-  - toda mudança é um novo arquivo em `migrations/` (hoje até `0020_caderno.sql`);
+  - toda mudança é um novo arquivo em `migrations/` (hoje até `0021_frases.sql`);
   - a migração é aplicada em produção pelo MCP da Cloudflare (`d1_database_query`), e o nome é registrado em `d1_migrations`;
   - nunca apagar dados sem perguntar.
 - **Custo zero:**
@@ -22,6 +22,8 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 - **Privacidade:**
   - tudo fica atrás de senha mais PIN (`worker/auth.ts`); o PIN tem **teclado próprio**, porque o teclado do iPhone às vezes não abre em apps instalados;
   - notificações nunca mostram conteúdo de reflexões.
+- **Tela acesa ao escrever:** em qualquer campo de texto (Diário, reflexões, Caderno), `components/app/KeepAwake.tsx` segura a tela com o mesmo recurso das práticas (`lib/screen-awake.ts`: wake lock + vídeo mudo) e a solta após 5 min sem digitar, o mesmo prazo do PIN.
+- **Pendências do app** têm "Copiar todas", para colar as abertas numa conversa.
 - **Telas:**
   - folhas que sobem da base usam `components/app/Sheet.tsx` (que ignora o toque que a abriu);
   - telas de cliente não importam valores de `lib/db/*` (só tipos); rótulos compartilhados ficam em `lib/*-shared.ts`.
@@ -71,6 +73,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   - arquivar esconde (página com subpáginas, seção, caderno); apagar de vez só no Arquivo, com confirmação;
   - busca FTS5 (`SearchIndex`, sem acentos, por começo de palavra); "Incluir Reflexões e Diário" reindexa esses textos quando mudaram (`SearchSource`);
   - nota rápida cai na Caixa de entrada; "Organizar" mostra setas para mudar a ordem.
+  - **Frases e passagens** `/caderno/frases` (`lib/db/frases.ts`, tabela `Passage`): caderno especial, criado também para quem já tinha cadernos; cada frase é **citação literal** (autor e obra obrigatórios) ou **minha síntese**, nunca misturadas; dos livros do AD, o trecho escolhido tem de ser igual ao do índice (`indexedPassage`), e o texto e a fonte não se editam, só a nota; filtro por autor; "Memorizar" cria um texto com uma frase por linha; arquivo e busca junto com o Caderno.
 - **Menu de baixo:** Início, Refletir, Hábitos, Agenda e Caderno. O **Diário** abre pelo "play" do hábito "Escrever o Diário" (ferramenta `DIARIO`) e pelo cartão do Início.
 - **Diário** `/diario`, **Mestre** `/mestre`, **Pendências do app** `/pendencias`, **Configurações** `/configuracoes` (lembretes).
 
@@ -81,8 +84,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
    - escolher as armas de cada trabalho (hoje são todas as práticas diárias da ED);
    - editar os textos dos mitos pelo app;
    - um desenho próprio para cada trabalho (hoje: medalhão com o número romano).
-2. **Caderno: próximas etapas** (maquete aprovada em 19/10/2026, etapa 1 entregue):
-   - etapa 2: **Frases e passagens** como caderno especial, sempre separando citação literal (com autor, obra, edição e página) de "minha síntese"; passagens dos 7 livros do AD;
+2. **Caderno: próximas etapas** (maquete aprovada em 19/10/2026; etapas 1 e 2 entregues):
    - etapa 3: seleção de trecho → Memorização (em linhas), Frase, Tarefa, ligação entre páginas; página "Notas de leitura" por livro; página da aula e do Bastião; lista de ligações no fim da página; etiquetas;
    - etapa 4: **fotos** (câmera direto, imagem reduzida no celular e guardada no próprio banco) e **desenho** à mão com formas geométricas; nota rápida a partir de outras telas;
    - depois: trazer as anotações do OneNote do usuário.
