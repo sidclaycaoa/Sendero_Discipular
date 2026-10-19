@@ -12,7 +12,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   4. o **usuário faz o merge**;
   5. o Cloudflare Workers Builds publica sozinho a partir do `main`.
 - **Banco D1 `sendero-discipular`** (id `8eecf873-d8f3-44ff-b72c-74d9d573dcd1`):
-  - toda mudança é um novo arquivo em `migrations/` (hoje até `0019_journey_start.sql`);
+  - toda mudança é um novo arquivo em `migrations/` (hoje até `0020_caderno.sql`);
   - a migração é aplicada em produção pelo MCP da Cloudflare (`d1_database_query`), e o nome é registrado em `d1_migrations`;
   - nunca apagar dados sem perguntar.
 - **Custo zero:**
@@ -64,6 +64,14 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   - Semana;
   - Compras: lista simples;
   - adicionar falando ("amanhã 15h", `lib/quick-add.ts`).
+- **Caderno** `/caderno` (`components/caderno/*`, `lib/db/caderno.ts`, `lib/caderno-shared.ts`), no estilo do OneNote:
+  - cadernos → seções → páginas, com um nível de subpáginas; os cadernos iniciais (Escola do Discipulado, Leituras, Aulas, Vida e trabalho, Caixa de entrada) nascem na primeira visita e são editáveis;
+  - editor TipTap (títulos, listas, caixinhas, citação, destaque, desfazer), barra de formatação acima do teclado (`visualViewport`), letra Source Serif servida pelo app;
+  - salvamento automático; "salvo" só com confirmação do servidor; cópia no `localStorage` até confirmar, oferecida de volta se não chegou; uma versão a cada 10 min (até 50 por página) com restauração;
+  - arquivar esconde (página com subpáginas, seção, caderno); apagar de vez só no Arquivo, com confirmação;
+  - busca FTS5 (`SearchIndex`, sem acentos, por começo de palavra); "Incluir Reflexões e Diário" reindexa esses textos quando mudaram (`SearchSource`);
+  - nota rápida cai na Caixa de entrada; "Organizar" mostra setas para mudar a ordem.
+- **Menu de baixo:** Início, Refletir, Hábitos, Agenda e Caderno. O **Diário** abre pelo "play" do hábito "Escrever o Diário" (ferramenta `DIARIO`) e pelo cartão do Início.
 - **Diário** `/diario`, **Mestre** `/mestre`, **Pendências do app** `/pendencias`, **Configurações** `/configuracoes` (lembretes).
 
 ## Fila (ordem combinada)
@@ -73,12 +81,13 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
    - escolher as armas de cada trabalho (hoje são todas as práticas diárias da ED);
    - editar os textos dos mitos pelo app;
    - um desenho próprio para cada trabalho (hoje: medalhão com o número romano).
-2. **Caderno de anotações**, estilo OneNote:
-   - cadernos → seções → páginas, editor TipTap, busca (FTS5 do D1), ligação com Leitura, Escola e Memorização;
-   - maquete antes.
-3. **Frases e passagens** (pode entrar no Caderno).
-4. **Faxina do banco:** o usuário apaga no painel D1 as tabelas antigas (`ReferencePassageSearch`, `ReferenceWork`, `ExportLog`, `bkp20261017_*`, `BastiaoWeek`). É preciso passar o passo a passo.
-5. **Por último:**
+2. **Caderno: próximas etapas** (maquete aprovada em 19/10/2026, etapa 1 entregue):
+   - etapa 2: **Frases e passagens** como caderno especial, sempre separando citação literal (com autor, obra, edição e página) de "minha síntese"; passagens dos 7 livros do AD;
+   - etapa 3: seleção de trecho → Memorização (em linhas), Frase, Tarefa, ligação entre páginas; página "Notas de leitura" por livro; página da aula e do Bastião; lista de ligações no fim da página; etiquetas;
+   - etapa 4: **fotos** (câmera direto, imagem reduzida no celular e guardada no próprio banco) e **desenho** à mão com formas geométricas; nota rápida a partir de outras telas;
+   - depois: trazer as anotações do OneNote do usuário.
+3. **Faxina do banco:** o usuário apaga no painel D1 as tabelas antigas (`ReferencePassageSearch`, `ReferenceWork`, `ExportLog`, `bkp20261017_*`, `BastiaoWeek`). É preciso passar o passo a passo.
+4. **Por último:**
    - **Face ID** via passkeys/WebAuthn. Avisar que o iPhone permite o código do aparelho como alternativa, e quem souber o código abriria o app.
    - Skill de **fechamento do mês** ("o que preciso viver de diferente no próximo mês").
    - O **AD num Projeto do Claude** com os 7 livros.

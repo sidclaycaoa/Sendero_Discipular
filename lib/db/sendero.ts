@@ -1168,7 +1168,7 @@ async function seedDefaultHabitTemplates(userId: string) {
     ["hab_varrer", "Varrer por dentro", "Observar nós internos, impulsos e reações antes de agir.", "DAILY", 1, null],
     ["hab_ordenar", "Ordenar o ambiente", "Organizar pequenos pontos de desordem com atenção.", "DAILY", 1, null],
     ["hab_desejo", "Superar o desejo", "Perceber o impulso e escolher com consciência.", "DAILY", 1, null],
-    ["hab_diario", "Escrever o Diário", "Registrar o dia com sinceridade e direção prática.", "DAILY", 1, null],
+    ["hab_diario", "Escrever o Diário", "Registrar o dia com sinceridade e direção prática.", "DAILY", 1, "DIARIO"],
     ["hab_disc3x", "Eu Sou Discípulo", "Recordar conscientemente a direção interior ao longo do dia.", "DAILY", 3, null],
     ["week_templo", "Templo Interior", "Reservar um momento de aprofundamento interior.", "WEEKLY", 2, null],
     ["week_servico", "Serviço silencioso", "Oferecer algo útil sem buscar reconhecimento.", "WEEKLY", 3, null],
