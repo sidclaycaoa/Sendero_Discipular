@@ -3,23 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Eye, Pencil, RotateCcw, SkipForward, X } from "lucide-react";
+import { ArrowLeft, Check, Eye, Pencil, RotateCcw, SkipForward, Timer, X } from "lucide-react";
 import { Card } from "@/components/app/AppShell";
 import { TextForm } from "@/components/memorizar/TextForm";
 import type { MemorizationText } from "@/lib/db/memorizacao";
 import { initials, wordLengths } from "@/lib/memorize-text";
 import { holdScreen } from "@/lib/screen-awake";
+import { prepareChime, ringChime } from "@/lib/chime";
 
 type Mode = "ler" | "iniciais" | "decor";
 const MODES: Array<{ key: Mode; label: string }> = [{ key: "ler", label: "Ler" }, { key: "iniciais", label: "Iniciais" }, { key: "decor", label: "De cor" }];
 // Right answers in a row, by heart, before suggesting the next line.
 const READY_AFTER = 3;
+// The bell rings once at this mark; the clock keeps counting for whoever wants to go on.
+const BELL_AT_SECONDS = 3 * 60;
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 /**
  * Practice of one text: the new line goes from reading, to first letters, to
  * by heart; three right answers by heart suggest moving to the next line.
  * The lines already learned stay above it as plain text, to read the new one in
  * context; "Do início" hides them too, to recite everything from the start.
+ * A clock starts with the first tap and rings at 3 minutes, but keeps counting.
+ * The session opens with a warm-up (reciting what is already known) and closes
+ * with a recital of the whole text, which reinforces it.
  */
 export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: boolean }) {
   const router = useRouter();
@@ -31,10 +38,32 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
   const [editing, setEditing] = useState(false);
   const [finish, setFinish] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [seconds, setSeconds] = useState<number | null>(null);
+  const [warmUp, setWarmUp] = useState(text.known > 0 && text.known < text.lines.length);
+  const [closingReview, setClosingReview] = useState(false);
+  const startedAt = useRef<number | null>(null);
+  const chime = useRef<AudioContext | null>(null);
+  const rang = useRef(false);
+
+  // The clock counts from real time, so it stays right when the phone slows the page down.
+  const running = seconds !== null;
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => {
+      const elapsed = Math.floor((Date.now() - (startedAt.current ?? Date.now())) / 1000);
+      setSeconds(elapsed);
+      if (elapsed >= BELL_AT_SECONDS && !rang.current) { rang.current = true; ringChime(chime.current); }
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [running]);
 
   // The screen stays on while practising; it is asked on the first tap (the phone only allows it then).
   const letScreenSleep = useRef<(() => void) | null>(null);
-  const keepAwake = () => { letScreenSleep.current ??= holdScreen(); };
+  const keepAwake = () => {
+    letScreenSleep.current ??= holdScreen();
+    if (startedAt.current === null) { startedAt.current = Date.now(); chime.current = prepareChime(); setSeconds(0); }
+  };
+  function restartClock() { startedAt.current = Date.now(); rang.current = false; setSeconds(0); }
   useEffect(() => () => letScreenSleep.current?.(), []);
 
   const total = text.lines.length;
@@ -112,7 +141,23 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
           <span className="text-xs font-semibold tabular-nums text-ink/70">{known}/{total}</span>
         </div>
         <p className="mt-1.5 text-xs text-ink/55">{complete ? "Texto inteiro de cor. Siga recitando do início para fixar." : `Trabalhando a linha ${current + 1} de ${total}.`}</p>
+        {seconds !== null ? (
+          <button type="button" onClick={restartClock} aria-label="Cronômetro do treino. Toque para zerar." className={`mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold tabular-nums ${seconds >= BELL_AT_SECONDS ? "border-moss bg-moss/10 text-moss" : "border-line text-ink/65"}`}>
+            <Timer className="h-3.5 w-3.5" aria-hidden="true" /> {clock(seconds)}{seconds >= BELL_AT_SECONDS ? " · 3 min cumpridos, siga se quiser" : ""}
+          </button>
+        ) : <p className="mt-3 text-xs text-ink/45">O cronômetro começa no primeiro toque e avisa aos 3 minutos.</p>}
       </Card>
+
+      {warmUp && known > 0 && !complete ? (
+        <Card className="mt-3 border-moss/30">
+          <p className="text-sm font-semibold text-ink">Comece aquecendo</p>
+          <p className="mt-1 text-sm text-ink/70">Recite de cor o que já sabe ({known} linha{known === 1 ? "" : "s"}) antes da linha nova. Revisar o anterior reforça o que vem depois.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setWarmUp(false); setFromStart(true); changeMode("decor"); }} className="min-h-11 rounded-xl bg-ink text-sm font-semibold text-paper">Recitar o que sei</button>
+            <button type="button" onClick={() => setWarmUp(false)} className="min-h-11 rounded-xl border border-line text-sm font-semibold text-ink/70">Ir direto à nova</button>
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="mt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -169,6 +214,11 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
         </div>
         {error ? <p role="alert" className="mt-2 text-sm font-semibold text-red-800">{error}</p> : null}
       </Card>
+
+      {known > 0 && finish !== "done" && !closingReview ? (
+        <button type="button" onClick={() => { setClosingReview(true); setWarmUp(false); setFromStart(true); changeMode("decor"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl border border-moss/40 bg-moss/10 text-sm font-semibold text-moss">Fechar o treino: recitar tudo desde o início</button>
+      ) : null}
+      {closingReview && finish !== "done" ? <p className="mt-3 text-center text-xs text-ink/55">Recite o texto todo, do início. Ao terminar, conclua o treino de hoje.</p> : null}
 
       {hasHabit ? (
         finish === "done" ? (

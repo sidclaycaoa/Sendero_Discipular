@@ -55,7 +55,8 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 - **Praticar** `/praticar/[id]`:
   - Tratak, Asana (imagem do dia), formas geométricas, músicas;
   - a tela fica acesa durante o exercício (`lib/screen-awake.ts`).
-- **Memorização** `/memorizar`: textos por linha (ler → iniciais → de cor), com as linhas já sabidas visíveis acima da nova; a tela fica acesa.
+- **Memorização** `/memorizar`: textos por linha (ler → iniciais → de cor), com as linhas já sabidas visíveis acima da nova; a tela fica acesa Cronômetro desde o primeiro toque (sino aos 3 min, segue contando), aquecimento ao abrir (recitar o já sabido) e "Fechar o treino" (recitar tudo do início).
+- **Uma passagem para hoje** `/inspiracao` (card no Início): trecho inteiro e com contexto, sorteado dos livros do AD (texto do índice, nunca reescrito), das notas de aula (`SchoolClass`) ou das Frases; filtro por fonte e tema; "Guardar nas Frases" (trecho selecionado ou a passagem toda, até 900 letras).
 - **Leitura** `/leitura`: livros, apostilas, textos e leituras de aula com prazo; cronômetro; trechos que viram Memorização.
 - **Escola** `/escola`:
   - **Bastião da semana** (nº, nome, lido, ideias-força, até 3 ideias "para viver" com check diário, reflexão), com arquivo e busca;
