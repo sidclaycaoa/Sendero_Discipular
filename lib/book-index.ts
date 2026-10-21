@@ -81,3 +81,24 @@ export async function listIndexedPassages(db: D1Database, query = "", limit = 25
   }
   return rows.map(p => quote(p,query));
 }
+
+/**
+ * One whole passage (a few paragraphs, with context) at random, optionally about a theme.
+ * Passages already shown can be left out. The text is the book's own, never rewritten.
+ */
+export async function randomIndexedPassage(db: D1Database, query = "", exclude: string[] = []) {
+  // A passage that opens a sentence reads better than one cut in the middle of it.
+  const opens = (text: string) => /^[\p{Lu}“"‘'—–\d]/u.test(text.trim());
+  if (query.trim()) {
+    const rows = (await listIndexedPassages(db, query, 60)).filter(row => row.text.length >= 250 && row.text.length <= 1600);
+    const fresh = rows.filter(row => !exclude.includes(row.id));
+    const pool = [fresh.filter(row => opens(row.text)), fresh, rows].find(list => list.length) ?? [];
+    return pool[Math.floor(Math.random() * pool.length)] ?? null;
+  }
+  const left = exclude.slice(-40);
+  const skip = left.length ? ` AND p.id NOT IN (${left.map(() => '?').join(',')})` : '';
+  const base = `${select} WHERE w.status='INDEXED' AND w.id IN (${placeholders}) AND length(p.text) BETWEEN 300 AND 1600${skip}`;
+  const capital = `AND substr(p.text, 1, 1) = upper(substr(p.text, 1, 1)) AND substr(p.text, 1, 1) <> lower(substr(p.text, 1, 1))`;
+  return await db.prepare(`${base} ${capital} ORDER BY random() LIMIT 1`).bind(...approvedIds, ...left).first<Row>()
+    ?? db.prepare(`${base} ORDER BY random() LIMIT 1`).bind(...approvedIds, ...left).first<Row>();
+}
