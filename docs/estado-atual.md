@@ -12,7 +12,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   4. o **usuário faz o merge**;
   5. o Cloudflare Workers Builds publica sozinho a partir do `main`.
 - **Banco D1 `sendero-discipular`** (id `8eecf873-d8f3-44ff-b72c-74d9d573dcd1`):
-  - toda mudança é um novo arquivo em `migrations/` (hoje até `0021_frases.sql`);
+  - toda mudança é um novo arquivo em `migrations/` (hoje até `0022_caderno_sintese.sql`);
   - a migração é aplicada em produção pelo MCP da Cloudflare (`d1_database_query`), e o nome é registrado em `d1_migrations`;
   - nunca apagar dados sem perguntar.
 - **Custo zero:**
@@ -22,7 +22,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 - **Privacidade:**
   - tudo fica atrás de senha mais PIN (`worker/auth.ts`); o PIN tem **teclado próprio**, porque o teclado do iPhone às vezes não abre em apps instalados;
   - notificações nunca mostram conteúdo de reflexões.
-- **Tela acesa ao escrever:** em qualquer campo de texto (Diário, reflexões, Caderno), `components/app/KeepAwake.tsx` segura a tela com o mesmo recurso das práticas (`lib/screen-awake.ts`: wake lock + vídeo mudo) e a solta após 5 min sem digitar, o mesmo prazo do PIN.
+- **Tela acesa ao escrever:** enquanto um campo de texto estiver com o cursor (Diário, reflexões, Caderno), `components/app/KeepAwake.tsx` segura a tela com o mesmo recurso das práticas (`lib/screen-awake.ts`: wake lock + vídeo mudo), digitando ou ditando (o ditado do iPhone quase não gera eventos de tecla). Volta a segurar quando o app é reaberto com o cursor num campo; solta 5 min depois de sair do campo, ou após 30 min sem escrever nada.
 - **Pendências do app** têm "Copiar todas", para colar as abertas numa conversa.
 - **Telas:**
   - folhas que sobem da base usam `components/app/Sheet.tsx` (que ignora o toque que a abriu);
@@ -69,7 +69,9 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   - adicionar falando ("amanhã 15h", `lib/quick-add.ts`).
 - **Caderno** `/caderno` (`components/caderno/*`, `lib/db/caderno.ts`, `lib/caderno-shared.ts`), no estilo do OneNote:
   - cadernos → seções → páginas, com um nível de subpáginas; os cadernos iniciais (Escola do Discipulado, Leituras, Aulas, Vida e trabalho, Caixa de entrada) nascem na primeira visita e são editáveis;
-  - editor TipTap (títulos, listas, caixinhas, citação, destaque, desfazer), barra de formatação acima do teclado (`visualViewport`), letra Source Serif servida pelo app;
+  - editor TipTap (`components/caderno/PageEditor.tsx`, extensões próprias em `components/caderno/editor-extensions.ts`), barra de formatação acima do teclado (`visualViewport`), e a página rola para o cursor nunca ficar atrás da barra;
+  - barra: duas paletas sempre visíveis (**Anotação** e **Comentário**, cores em `lib/caderno-shared.ts`), negrito, itálico, título, listas, caixinhas, **recuar/avançar** (subtópicos em vários níveis; Tab e Shift-Tab também), citação (dentro de lista, o item sai da lista antes), destaque, **marca de data** ("29/out", guarda o dia e aparece como "[29/out]" no texto puro), desfazer/refazer; o "⋯" abre sublinhado, tachado, título menor, linha, limpar formatação, alinhamento, **letra** (Livro = Source Serif, Clara = Atkinson Hyperlegible, Manuscrita = Caveat, todas servidas pelo app) e cores de destaque;
+  - no topo da página: "Copiar tudo" (texto puro, com marcadores e níveis das listas), "Compartilhar" e "Escrever no fim"; **Síntese** recolhível (coluna `NotePage.synthesis`, salva à parte, sem versão) com "Copiar para a IA" (pedido de síntese + texto da página) e "Colar a resposta". Nenhuma IA roda no app;
   - salvamento automático; "salvo" só com confirmação do servidor; cópia no `localStorage` até confirmar, oferecida de volta se não chegou; uma versão a cada 10 min (até 50 por página) com restauração;
   - arquivar esconde (página com subpáginas, seção, caderno); apagar de vez só no Arquivo, com confirmação;
   - busca FTS5 (`SearchIndex`, sem acentos, por começo de palavra); "Incluir Reflexões e Diário" reindexa esses textos quando mudaram (`SearchSource`);
@@ -82,15 +84,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 
 Cada pacote é feito numa conversa nova. Antes de começar, confira em `/pendencias` (ou no código) se algum item já foi resolvido.
 
-**Pacote A: bugs e editor do Caderno** (Sonnet)
-- **#1 Tela apaga ao ditar no Diário.** O ditado do iPhone quase não gera eventos de digitação, então o prazo de 5 min sem digitar vence. A tela deve ficar acesa enquanto um campo de texto estiver com foco, não só depois de cada tecla, e voltar a segurar ao reabrir o app. Valer para Diário, Refletir e Caderno.
-- **#9 Texto some ao chegar no fim da página do Caderno.** Ao digitar perto do teclado e da barra de formatação, a página deve rolar para manter o cursor visível.
-- **#10 Recuo.** Tab e Shift-Tab, ou botões, para subtópicos em vários níveis. O botão de citação (") não parece funcionar: conferir.
-- **#7 Botão "⋯" na barra de formatação** para abrir mais opções: cor da letra, sublinhado, tachado, alinhamento e outros.
-- **#6 Duas paletas de cor sempre visíveis**, uma para "anotação" e outra para "comentário da anotação", e escolha de fonte (2 ou 3 opções servidas pelo app, sem custo).
-- **#3 Botões no topo da página:** "Copiar tudo" (texto puro) e outros úteis.
-- **#4 Marca de data:** um botão insere no texto uma marquinha com a data do dia (ex.: "29/out"), para separar o que foi escrito em dias diferentes sobre o mesmo tema.
-- **#2 Síntese da página:** um campo "Síntese" recolhível no topo e um botão "Copiar para a IA", que copia um pedido de síntese junto com o texto da página. O usuário cola a resposta da IA de volta no campo. Nada de IA dentro do app.
+**Pacote A: bugs e editor do Caderno** — entregue (itens #1, #2, #3, #4, #6, #7, #9, #10; ver Caderno e "Tela acesa" acima). Conferir no iPhone e marcar como resolvidos em `/pendencias`.
 
 **Pacote B: Memorização** (Sonnet)
 - **#11 Etapas:** depois da leitura, em vez de só as iniciais, a etapa 1 esconde 50% das palavras, a etapa 2 esconde 80% e a etapa 3 pede para recitar tudo. (#12 "Uma passagem para hoje" e #13 cronômetro/revisões já foram entregues; conferir e fechar.)

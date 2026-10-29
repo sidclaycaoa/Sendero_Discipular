@@ -17,6 +17,8 @@
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@tiptap/extension-highlight": "3.31.4",
     "@tiptap/extension-list": "3.31.4",
+    "@tiptap/extension-text-align": "3.31.4",
+    "@tiptap/extension-text-style": "3.31.4",
     "@tiptap/extensions": "3.31.4",
     "@tiptap/pm": "3.31.4",
     "@tiptap/react": "3.31.4",

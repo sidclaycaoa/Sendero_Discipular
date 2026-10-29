@@ -7,11 +7,14 @@ import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/r
 import StarterKit from "@tiptap/starter-kit";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Highlight from "@tiptap/extension-highlight";
+import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
+import TextAlign from "@tiptap/extension-text-align";
 import { Placeholder } from "@tiptap/extensions";
-import { Archive, ArrowLeft, Bold, Heading2, Highlighter, History, Italic, List, ListChecks, ListOrdered, MoreHorizontal, MoveRight, Plus, Quote, Redo2, Undo2 } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Archive, ArrowDownToLine, ArrowLeft, Bold, CalendarDays, ChevronDown, ClipboardCopy, ClipboardPaste, Heading2, Heading3, Highlighter, History, IndentDecrease, IndentIncrease, Italic, List, ListChecks, ListOrdered, Minus, MoreHorizontal, MoveRight, Plus, Quote, Redo2, RemoveFormatting, Share2, Sparkles, Strikethrough, Underline, Undo2 } from "lucide-react";
 import { Sheet } from "@/components/app/Sheet";
-import { cadernoAction } from "@/components/caderno/shared";
-import { whenEdited } from "@/lib/caderno-shared";
+import { DateStamp, IndentKeys, indent, insertDateStamp, outdent, toggleQuote } from "@/components/caderno/editor-extensions";
+import { cadernoAction, copyText } from "@/components/caderno/shared";
+import { COMMENT_COLORS, HIGHLIGHT_COLORS, NOTE_COLORS, PAGE_FONTS, dateStampLabel, pageToText, synthesisRequest, todayKey, whenEdited } from "@/lib/caderno-shared";
 import type { NotePage, NotePageSummary, NoteSection, Notebook } from "@/lib/db/caderno";
 
 type Props = {
@@ -68,7 +71,13 @@ export function PageEditor({ page, notebook, section, parent, children, versions
       StarterKit.configure({ heading: { levels: [2, 3] }, link: false }),
       TaskList,
       TaskItem.configure({ nested: true, a11y: { checkboxLabel: (_node, checked) => (checked ? "Desmarcar item" : "Marcar item") } }),
-      Highlight,
+      Highlight.configure({ multicolor: true }),
+      TextStyle,
+      Color,
+      FontFamily,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      DateStamp,
+      IndentKeys,
       Placeholder.configure({ placeholder: "Escreva aqui…" }),
     ],
     content: parseContent(page.content),
@@ -160,9 +169,11 @@ export function PageEditor({ page, notebook, section, parent, children, versions
   }
 
   const place = [notebook.name, section?.name, parent?.title].filter(Boolean);
+  const pageText = () => (editor ? pageToText(editor.getJSON()) : page.plainText);
 
   return (
-    <div className={focused ? "pb-20" : ""}>
+    // While writing, room below the text lets its last lines rise above the keyboard and the bar.
+    <div style={focused ? { paddingBottom: "55vh" } : undefined}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <Link prefetch={false} href={parent ? `/caderno/pagina/${parent.id}` : `/caderno/${notebook.id}`} className="flex min-h-11 min-w-0 items-center gap-2 text-[12.5px] text-ink/65">
           <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -171,6 +182,8 @@ export function PageEditor({ page, notebook, section, parent, children, versions
         </Link>
         <button type="button" onClick={() => setSheet("menu")} aria-label="Mais opções da página" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-white text-ink/70"><MoreHorizontal className="h-5 w-5" /></button>
       </div>
+
+      <PageActions title={title} text={pageText} editor={editor} />
 
       {recovered ? (
         <div role="status" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
@@ -188,6 +201,7 @@ export function PageEditor({ page, notebook, section, parent, children, versions
           <span>criada {whenEdited(page.createdAt)}</span><span>·</span>
           <SaveBadge state={save} />
         </p>
+        <Synthesis pageId={page.id} initial={page.synthesis ?? ""} request={() => synthesisRequest(titleRef.current, pageText())} />
         <div className="mt-3"><EditorContent editor={editor} /></div>
       </article>
 
@@ -226,48 +240,259 @@ function SaveBadge({ state }: { state: SaveState }) {
   return <span className="font-semibold text-emerald-800">✓ salvo {state.at ? whenEdited(state.at) : ""}</span>;
 }
 
-/** Formatting bar, kept just above the iPhone keyboard while writing. */
+/** Buttons at the top of the page: copy the plain text, share it, go to its end to keep writing. */
+function PageActions({ title, text, editor }: { title: string; text: () => string; editor: Editor | null }) {
+  const [copied, setCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+  // Sharing exists only in the phone's browser, known after the first render.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCanShare(typeof navigator.share === "function"); }, []);
+  const whole = () => [title.trim(), text()].filter(Boolean).join("\n\n");
+  async function copy() {
+    setCopied(await copyText(whole()));
+    window.setTimeout(() => setCopied(false), 2500);
+  }
+  function share() {
+    void navigator.share({ title: title.trim() || "Página do Caderno", text: whole() }).catch(() => undefined);
+  }
+  function toEnd() {
+    if (!editor) return;
+    editor.chain().focus("end").scrollIntoView().run();
+  }
+  const pill = "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[12.5px] font-semibold text-ink/80";
+  return (
+    <div className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+      <button type="button" onClick={copy} className={pill}><ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />{copied ? "Copiado ✓" : "Copiar tudo"}</button>
+      {canShare ? <button type="button" onClick={share} className={pill}><Share2 className="h-3.5 w-3.5" aria-hidden="true" />Compartilhar</button> : null}
+      <button type="button" onClick={toEnd} className={pill}><ArrowDownToLine className="h-3.5 w-3.5" aria-hidden="true" />Escrever no fim</button>
+    </div>
+  );
+}
+
+const SYNTHESIS_SAVE_MS = 1000;
+
+/**
+ * The page's synthesis, folded at the top. "Copiar para a IA" copies a request
+ * with the whole page, to paste in a conversation with an AI outside the app;
+ * the answer is pasted back here. No AI runs inside the app.
+ */
+function Synthesis({ pageId, initial, request }: { pageId: string; initial: string; request: () => string }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(initial);
+  const [state, setState] = useState<"saved" | "saving" | "error">("saved");
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number | null>(null);
+  const latest = useRef(initial);
+  const area = useRef<HTMLTextAreaElement>(null);
+
+  const send = useCallback(async () => {
+    if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
+    const sent = latest.current;
+    try {
+      await cadernoAction({ action: "saveSynthesis", id: pageId, synthesis: sent });
+      if (latest.current === sent) setState("saved");
+    } catch { setState("error"); }
+  }, [pageId]);
+  useEffect(() => () => { if (timer.current) void send(); }, [send]);
+  useLayoutEffect(() => {
+    const input = area.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.max(input.scrollHeight, 88)}px`;
+  }, [value, open]);
+
+  function change(next: string) {
+    latest.current = next;
+    setValue(next);
+    setState("saving");
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => { void send(); }, SYNTHESIS_SAVE_MS);
+  }
+  async function copyRequest() {
+    setCopied(await copyText(request()));
+    window.setTimeout(() => setCopied(false), 3000);
+  }
+  async function paste() {
+    try {
+      const answer = (await navigator.clipboard.readText()).trim();
+      if (answer) change(value.trim() ? `${value.trim()}\n\n${answer}` : answer);
+    } catch {
+      area.current?.focus();
+    }
+  }
+
+  const button = "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[12.5px] font-semibold text-ink/80";
+  return (
+    <section className="mt-3 rounded-xl border border-[#e8e0cf] bg-[#faf6ec]">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 w-full items-center gap-2 px-3 text-left">
+        <Sparkles className="h-4 w-4 shrink-0 text-bronze" aria-hidden="true" />
+        <span className="text-[13px] font-semibold text-ink">Síntese</span>
+        {!open ? <span className="caderno-serif min-w-0 flex-1 truncate text-[13px] text-ink/60">{value.trim() || "ainda não escrita"}</span> : <span className="flex-1" />}
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink/50 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open ? (
+        <div className="px-3 pb-3">
+          <textarea ref={area} value={value} onChange={(event) => change(event.target.value)} placeholder="A ideia central desta página, em poucas frases." aria-label="Síntese da página"
+            className="caderno-serif block w-full resize-none rounded-lg border border-line bg-white p-2.5 text-[15px] leading-6 text-ink outline-none" />
+          <p className="mt-1 text-[11.5px] text-ink/50">{state === "saving" ? "salvando…" : state === "error" ? <span className="font-semibold text-amber-800">não foi salva: confira a internet e mexa no texto de novo</span> : value.trim() ? "✓ salva" : ""}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button type="button" onClick={copyRequest} className={button}><ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />{copied ? "Copiado ✓" : "Copiar para a IA"}</button>
+            <button type="button" onClick={paste} className={button}><ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />Colar a resposta</button>
+          </div>
+          <p className="mt-2 text-[11.5px] leading-4 text-ink/55">&quot;Copiar para a IA&quot; copia um pedido de síntese junto com o texto da página. Cole numa conversa com a IA e traga a resposta para cá com &quot;Colar a resposta&quot;.</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+type BarButton = { label: string; icon: ReactNode; on?: boolean; disabled?: boolean; run: () => void };
+
+// pointerdown keeps the cursor in the text, so the keyboard does not close
+const keepFocus = (event: { preventDefault: () => void }) => event.preventDefault();
+
+function BarButtons({ buttons }: { buttons: BarButton[] }) {
+  return buttons.map((button) => (
+    <button key={button.label} type="button" aria-label={button.label} title={button.label} aria-pressed={button.on} disabled={button.disabled} onPointerDown={keepFocus} onClick={button.run}
+      className={`grid h-9 min-w-9 shrink-0 place-items-center rounded-lg border px-2 disabled:opacity-35 ${button.on ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`}>{button.icon}</button>
+  ));
+}
+
+function Swatch({ name, color, on, run, ring }: { name: string; color: string; on: boolean; run: () => void; ring?: boolean }) {
+  return (
+    <button type="button" aria-label={name} title={name} aria-pressed={on} onPointerDown={keepFocus} onClick={run}
+      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${on ? "border-ink" : "border-transparent"}`}>
+      <span className={`block h-[18px] w-[18px] rounded-full ${ring ? "border border-[#cfc6b5]" : ""}`} style={{ background: color }} />
+    </button>
+  );
+}
+
+const MARGIN = 14;
+
+/**
+ * Formatting bar, kept just above the iPhone keyboard while writing: the two
+ * color sets (notes and comments) always in sight, the common buttons in a row,
+ * and "⋯" for the rest. The page scrolls so the cursor never hides behind it.
+ */
 function Toolbar({ editor }: { editor: Editor }) {
   const [offset, setOffset] = useState(0);
+  const [more, setMore] = useState(false);
+  const bar = useRef<HTMLDivElement>(null);
+
+  // Keeps the line being written above the bar (the phone only knows about the keyboard).
+  const reveal = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      if (editor.isDestroyed || !editor.isFocused) return;
+      const viewport = window.visualViewport;
+      const top = viewport?.offsetTop ?? 0;
+      const bottom = top + (viewport?.height ?? window.innerHeight) - (bar.current?.offsetHeight ?? 0) - MARGIN;
+      let caret: { top: number; bottom: number };
+      try { caret = editor.view.coordsAtPos(editor.state.selection.head); } catch { return; }
+      if (caret.bottom > bottom) window.scrollBy({ top: caret.bottom - bottom });
+      else if (caret.top < top + MARGIN) window.scrollBy({ top: caret.top - top - MARGIN });
+    });
+  }, [editor]);
+
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport) return;
-    const place = () => setOffset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop));
+    const place = () => { if (viewport) setOffset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)); };
+    const resized = () => { place(); reveal(); };
     place();
-    viewport.addEventListener("resize", place);
-    viewport.addEventListener("scroll", place);
-    return () => { viewport.removeEventListener("resize", place); viewport.removeEventListener("scroll", place); };
-  }, []);
+    viewport?.addEventListener("resize", resized);
+    viewport?.addEventListener("scroll", place);
+    editor.on("selectionUpdate", reveal);
+    editor.on("update", reveal);
+    reveal();
+    return () => {
+      viewport?.removeEventListener("resize", resized);
+      viewport?.removeEventListener("scroll", place);
+      editor.off("selectionUpdate", reveal);
+      editor.off("update", reveal);
+    };
+  }, [editor, reveal]);
+  useEffect(() => { reveal(); }, [more, reveal]);
+
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
-      bold: current.isActive("bold"), italic: current.isActive("italic"), heading: current.isActive("heading", { level: 2 }),
+      bold: current.isActive("bold"), italic: current.isActive("italic"), underline: current.isActive("underline"), strike: current.isActive("strike"),
+      heading: current.isActive("heading", { level: 2 }), small: current.isActive("heading", { level: 3 }),
       bullet: current.isActive("bulletList"), ordered: current.isActive("orderedList"), task: current.isActive("taskList"),
+      inList: current.isActive("listItem") || current.isActive("taskItem"),
       quote: current.isActive("blockquote"), mark: current.isActive("highlight"),
+      highlight: (current.getAttributes("highlight").color as string | undefined) ?? null,
+      color: (current.getAttributes("textStyle").color as string | undefined) ?? null,
+      font: (current.getAttributes("textStyle").fontFamily as string | undefined) ?? null,
+      align: (["center", "right", "justify"] as const).find((side) => current.isActive({ textAlign: side })) ?? "left",
       undo: current.can().undo(), redo: current.can().redo(),
     }),
   });
   const chain = () => editor.chain().focus();
-  const buttons: Array<{ label: string; icon: ReactNode; on?: boolean; disabled?: boolean; run: () => void }> = [
+  const setColor = (value: string | null) => (value ? chain().setColor(value).run() : chain().unsetColor().run());
+
+  const main: BarButton[] = [
     { label: "Negrito", icon: <Bold className="h-4 w-4" />, on: active.bold, run: () => chain().toggleBold().run() },
     { label: "Itálico", icon: <Italic className="h-4 w-4" />, on: active.italic, run: () => chain().toggleItalic().run() },
     { label: "Título", icon: <Heading2 className="h-4 w-4" />, on: active.heading, run: () => chain().toggleHeading({ level: 2 }).run() },
     { label: "Lista", icon: <List className="h-4 w-4" />, on: active.bullet, run: () => chain().toggleBulletList().run() },
     { label: "Lista numerada", icon: <ListOrdered className="h-4 w-4" />, on: active.ordered, run: () => chain().toggleOrderedList().run() },
     { label: "Caixinhas de marcar", icon: <ListChecks className="h-4 w-4" />, on: active.task, run: () => chain().toggleTaskList().run() },
-    { label: "Citação", icon: <Quote className="h-4 w-4" />, on: active.quote, run: () => chain().toggleBlockquote().run() },
+    { label: "Recuar (voltar um nível)", icon: <IndentDecrease className="h-4 w-4" />, disabled: !active.inList, run: () => outdent(editor) },
+    { label: "Avançar (subtópico)", icon: <IndentIncrease className="h-4 w-4" />, run: () => indent(editor) },
+    { label: "Citação", icon: <Quote className="h-4 w-4" />, on: active.quote, run: () => toggleQuote(editor) },
     { label: "Destaque", icon: <Highlighter className="h-4 w-4" />, on: active.mark, run: () => chain().toggleHighlight().run() },
+    { label: `Marca de data (${dateStampLabel(todayKey())})`, icon: <CalendarDays className="h-4 w-4" />, run: () => insertDateStamp(editor, todayKey()) },
     { label: "Desfazer", icon: <Undo2 className="h-4 w-4" />, disabled: !active.undo, run: () => chain().undo().run() },
     { label: "Refazer", icon: <Redo2 className="h-4 w-4" />, disabled: !active.redo, run: () => chain().redo().run() },
   ];
+  const extra: BarButton[] = [
+    { label: "Sublinhado", icon: <Underline className="h-4 w-4" />, on: active.underline, run: () => chain().toggleUnderline().run() },
+    { label: "Tachado", icon: <Strikethrough className="h-4 w-4" />, on: active.strike, run: () => chain().toggleStrike().run() },
+    { label: "Título menor", icon: <Heading3 className="h-4 w-4" />, on: active.small, run: () => chain().toggleHeading({ level: 3 }).run() },
+    { label: "Linha divisória", icon: <Minus className="h-4 w-4" />, run: () => chain().setHorizontalRule().run() },
+    { label: "Limpar formatação", icon: <RemoveFormatting className="h-4 w-4" />, run: () => chain().unsetAllMarks().run() },
+  ];
+  const aligns: BarButton[] = [
+    { label: "Alinhar à esquerda", icon: <AlignLeft className="h-4 w-4" />, on: active.align === "left", run: () => chain().unsetTextAlign().run() },
+    { label: "Centralizar", icon: <AlignCenter className="h-4 w-4" />, on: active.align === "center", run: () => chain().setTextAlign("center").run() },
+    { label: "Alinhar à direita", icon: <AlignRight className="h-4 w-4" />, on: active.align === "right", run: () => chain().setTextAlign("right").run() },
+    { label: "Justificar", icon: <AlignJustify className="h-4 w-4" />, on: active.align === "justify", run: () => chain().setTextAlign("justify").run() },
+  ];
+  const label = "shrink-0 text-[9.5px] font-semibold uppercase text-ink/55";
+
   return (
-    <div className="fixed inset-x-0 z-[60] border-t border-line bg-[#f2efe7] px-2 py-1.5" style={{ bottom: offset }} role="toolbar" aria-label="Formatação">
-      <div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto">
-        {buttons.map((button) => (
-          // pointerdown keeps the cursor in the text, so the keyboard does not close
-          <button key={button.label} type="button" aria-label={button.label} aria-pressed={button.on} disabled={button.disabled} onPointerDown={(event) => event.preventDefault()} onClick={button.run}
-            className={`grid h-9 min-w-9 shrink-0 place-items-center rounded-lg border px-2 disabled:opacity-35 ${button.on ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`}>{button.icon}</button>
-        ))}
+    <div ref={bar} className="fixed inset-x-0 z-[60] border-t border-line bg-[#f2efe7] px-2 pb-1.5 pt-1" style={{ bottom: offset }} role="toolbar" aria-label="Formatação">
+      <div className="mx-auto max-w-2xl">
+        {more ? (
+          <div className="mb-1 space-y-1 border-b border-line pb-1.5">
+            <div className="flex gap-1 overflow-x-auto"><BarButtons buttons={extra} /></div>
+            <div className="flex gap-1 overflow-x-auto"><BarButtons buttons={aligns} /></div>
+            <div className="flex items-center gap-1 overflow-x-auto">
+              <span className={label}>Letra</span>
+              {PAGE_FONTS.map((font) => (
+                <button key={font.name} type="button" aria-pressed={active.font === font.value} onPointerDown={keepFocus} onClick={() => (font.value ? chain().setFontFamily(font.value).run() : chain().unsetFontFamily().run())}
+                  className={`h-9 shrink-0 rounded-lg border px-3 text-[15px] ${active.font === font.value ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`} style={{ fontFamily: font.css }}>{font.name}</button>
+              ))}
+            </div>
+            <div className="flex items-center gap-0.5 overflow-x-auto">
+              <span className={`${label} mr-1`}>Destaque</span>
+              {HIGHLIGHT_COLORS.map((color) => <Swatch key={color.value} name={`Destaque ${color.name.toLowerCase()}`} color={color.value} ring on={active.highlight === color.value} run={() => chain().setHighlight({ color: color.value }).run()} />)}
+              <button type="button" onPointerDown={keepFocus} onClick={() => chain().unsetHighlight().run()} className="h-7 shrink-0 rounded-lg border border-line bg-white px-2 text-[12px] font-semibold text-ink/70">sem destaque</button>
+            </div>
+          </div>
+        ) : null}
+        <div className="flex items-center gap-0.5 overflow-x-auto pb-1" aria-label="Cores">
+          <span className={`${label} mr-0.5`}>Anotação</span>
+          {NOTE_COLORS.map((color) => <Swatch key={color.name} name={`Anotação: ${color.name.toLowerCase()}`} color={color.value ?? "#22261f"} on={active.color === color.value} run={() => setColor(color.value)} />)}
+          <span className="mx-1 h-5 w-px shrink-0 bg-line" />
+          <span className={`${label} mr-0.5`}>Comentário</span>
+          {COMMENT_COLORS.map((color) => <Swatch key={color.name} name={`Comentário: ${color.name.toLowerCase()}`} color={color.value} on={active.color === color.value} run={() => setColor(color.value)} />)}
+        </div>
+        <div className="flex gap-1">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto"><BarButtons buttons={main} /></div>
+          <button type="button" aria-label="Mais opções de formatação" aria-expanded={more} onPointerDown={keepFocus} onClick={() => setMore(!more)}
+            className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${more ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`}><MoreHorizontal className="h-4 w-4" /></button>
+        </div>
       </div>
     </div>
   );

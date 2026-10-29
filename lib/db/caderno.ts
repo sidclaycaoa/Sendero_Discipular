@@ -12,12 +12,13 @@ import { DEFAULT_NOTEBOOKS, FRASES_COLOR, MARK_START, NOTEBOOK_COLORS, preview }
 export type Notebook = { id: string; name: string; color: string; kind: "NORMAL" | "ENTRADA" | "FRASES"; position: number; archivedAt: string | null; updatedAt: string };
 export type NoteSection = { id: string; notebookId: string; name: string; position: number; archivedAt: string | null };
 export type NotePageSummary = { id: string; notebookId: string; sectionId: string | null; parentId: string | null; title: string; preview: string; position: number; updatedAt: string };
-export type NotePage = NotePageSummary & { content: string | null; plainText: string; archivedAt: string | null; createdAt: string };
+export type NotePage = NotePageSummary & { content: string | null; plainText: string; synthesis: string | null; archivedAt: string | null; createdAt: string };
 export type NotebookCard = Notebook & { sections: number; pages: number };
 export type SearchHit = { kind: "PAGINA" | "FRASE" | "REFLEXAO" | "DIARIO"; id: string; title: string; snippet: string; href: string | null; place: string; color: string | null };
 
 const MAX_TITLE = 300;
 const MAX_CONTENT = 900_000;
+const MAX_SYNTHESIS = 20_000;
 const VERSION_EVERY_MS = 10 * 60 * 1000;
 const VERSIONS_KEPT = 50;
 const UNTITLED = "Sem título";
@@ -98,7 +99,7 @@ function summary(row: NotePageSummary & { plainText: string }): NotePageSummary 
 export async function getPage(userId: string, pageId: string) {
   await ensureSenderoSeeded();
   const db = getSenderoDb();
-  const page = await db.prepare('SELECT id, notebookId, sectionId, parentId, title, content, plainText, position, archivedAt, createdAt, updatedAt FROM "NotePage" WHERE id = ? AND userId = ?').bind(pageId, userId).first<NotePage & { plainText: string }>();
+  const page = await db.prepare('SELECT id, notebookId, sectionId, parentId, title, content, plainText, synthesis, position, archivedAt, createdAt, updatedAt FROM "NotePage" WHERE id = ? AND userId = ?').bind(pageId, userId).first<NotePage & { plainText: string }>();
   if (!page) return null;
   const [notebooks, sections, parent, children, versions] = await Promise.all([
     db.prepare('SELECT id, name, color, kind, position, archivedAt, updatedAt FROM "Notebook" WHERE userId = ? AND archivedAt IS NULL ORDER BY position, createdAt').bind(userId).all<Notebook>(),
@@ -338,6 +339,14 @@ export async function runCadernoAction(userId: string, body: Record<string, unkn
     }
     case "savePage":
       return savePage(userId, body);
+    case "saveSynthesis": {
+      // Kept apart from the page: it neither makes a version nor moves the page's "edited" time.
+      const page = await db.prepare('SELECT id FROM "NotePage" WHERE id = ? AND userId = ?').bind(requireId(body.id, "Página"), userId).first<{ id: string }>();
+      if (!page) throw new Error("Página não encontrada.");
+      const synthesis = text(body.synthesis, MAX_SYNTHESIS);
+      await db.prepare('UPDATE "NotePage" SET synthesis = ? WHERE id = ?').bind(synthesis || null, page.id).run();
+      return { synthesis };
+    }
     case "movePage": {
       const page = await db.prepare('SELECT id FROM "NotePage" WHERE id = ? AND userId = ?').bind(requireId(body.id, "Página"), userId).first<{ id: string }>();
       if (!page) throw new Error("Página não encontrada.");
