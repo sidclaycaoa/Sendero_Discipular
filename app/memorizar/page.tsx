@@ -12,7 +12,7 @@ export default async function MemorizarPage() {
   const texts = user ? await listMemorizationTexts(user.id) : [];
   return (
     <AppShell showDailyTonic={false}>
-      <ModuleHeader eyebrow="Prática da ED" title="Memorização" description="Textos decorados linha a linha: ler, iniciais, de cor. Cada linha nova se soma às que você já sabe." action={<BookMarked className="h-6 w-6 text-olive" />} />
+      <ModuleHeader eyebrow="Prática da ED" title="Memorização" description="Textos decorados linha a linha: ler, metade escondida, 80% escondido, de cor. Cada linha nova se soma às que você já sabe." action={<BookMarked className="h-6 w-6 text-olive" />} />
       <MemorizeList texts={texts} today={getSaoPauloDateKey()} />
     </AppShell>
   );
