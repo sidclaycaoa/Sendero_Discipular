@@ -55,7 +55,7 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
 - **Praticar** `/praticar/[id]`:
   - Tratak, Asana (imagem do dia), formas geométricas, músicas;
   - a tela fica acesa durante o exercício (`lib/screen-awake.ts`).
-- **Memorização** `/memorizar`: textos por linha (ler → iniciais → de cor), com as linhas já sabidas visíveis acima da nova; a tela fica acesa Cronômetro desde o primeiro toque (sino aos 3 min, segue contando), aquecimento ao abrir (recitar o já sabido) e "Fechar o treino" (recitar tudo do início).
+- **Memorização** `/memorizar`: textos por linha (ler → 50% das palavras escondidas → 80% → de cor; o 80% esconde as mesmas do 50% e mais algumas, cada nova tentativa sorteia outras, "Conferir" mostra as escondidas marcadas; errar de cor volta ao 80%; `lib/memorize-text.ts`), com as linhas já sabidas visíveis acima da nova; a tela fica acesa. Cronômetro desde o primeiro toque (sino aos 3 min, segue contando), aquecimento ao abrir (recitar o já sabido) e "Fechar o treino" (recitar tudo do início).
 - **Uma passagem para hoje** `/inspiracao` (card no Início): trecho inteiro e com contexto, sorteado dos livros do AD (texto do índice, nunca reescrito), das notas de aula (`SchoolClass`) ou das Frases; filtro por fonte e tema; "Guardar nas Frases" (trecho selecionado ou a passagem toda, até 900 letras).
 - **Leitura** `/leitura`: livros, apostilas, textos e leituras de aula com prazo; cronômetro; trechos que viram Memorização.
 - **Escola** `/escola`:
@@ -86,8 +86,7 @@ Cada pacote é feito numa conversa nova. Antes de começar, confira em `/pendenc
 
 **Pacote A: bugs e editor do Caderno** — entregue (itens #1, #2, #3, #4, #6, #7, #9, #10; ver Caderno e "Tela acesa" acima). Conferir no iPhone e marcar como resolvidos em `/pendencias`.
 
-**Pacote B: Memorização** (Sonnet)
-- **#11 Etapas:** depois da leitura, em vez de só as iniciais, a etapa 1 esconde 50% das palavras, a etapa 2 esconde 80% e a etapa 3 pede para recitar tudo. (#12 "Uma passagem para hoje" e #13 cronômetro/revisões já foram entregues; conferir e fechar.)
+**Pacote B: Memorização** — entregue (#11: etapas 50%, 80% e de cor no lugar das iniciais; ver Memorização acima). #12 "Uma passagem para hoje" e #13 cronômetro/revisões já estavam entregues. Conferir no iPhone e marcar os três como resolvidos em `/pendencias`.
 
 **Pacote C: modo escuro** (Sonnet)
 - **#5** Claro, escuro ou automático, com chave em Configurações. Mostrar uma maquete antes.

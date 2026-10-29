@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { readdir, readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 
 // Memorização: texts learned line by line.
 class D1 {
@@ -88,4 +89,15 @@ test("migration 0010 opens the module from the existing Memorização habit", as
   const sql = (await readFile(new URL("../migrations/0010_memorization.sql", import.meta.url), "utf8")).replace(/ALTER TABLE[^;]*;/g, "").replace(/CREATE INDEX[^;]*;/g, "");
   db.sqlite.exec(sql);
   assert.equal(db.sqlite.prepare('SELECT practiceTool FROM "HabitTemplate" WHERE id = ?').get("ed_memorizacao").practiceTool, "MEMORIZAR");
+});
+
+test("the stages hide half, then 80% of the words, the 80% including the half", () => {
+  const source = new URL("../lib/memorize-text.ts", import.meta.url).pathname;
+  const out = execFileSync(process.execPath, ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", `
+    import { hiddenWords, wordParts } from ${JSON.stringify(source)};
+    const line = "Somos discípulos do caminho, e o caminho se faz ao andar sempre";
+    const half = hiddenWords(line, 0.5, 3), most = hiddenWords(line, 0.8, 3), again = hiddenWords(line, 0.5, 3), other = hiddenWords(line, 0.5, 4);
+    console.log(JSON.stringify({ half: half.size, most: most.size, nested: [...half].every((i) => most.has(i)), stable: [...half].join() === [...again].join(), other: [...half].sort().join() !== [...other].sort().join(), one: hiddenWords("Ser", 0.5).size, parts: wordParts("«caminho,") }));
+  `]).toString();
+  assert.deepEqual(JSON.parse(out), { half: 6, most: 10, nested: true, stable: true, other: true, one: 1, parts: ["«", "caminho", ","] });
 });

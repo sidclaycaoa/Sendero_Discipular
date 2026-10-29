@@ -7,12 +7,20 @@ import { ArrowLeft, Check, Eye, Pencil, RotateCcw, SkipForward, Timer, X } from 
 import { Card } from "@/components/app/AppShell";
 import { TextForm } from "@/components/memorizar/TextForm";
 import type { MemorizationText } from "@/lib/db/memorizacao";
-import { initials, wordLengths } from "@/lib/memorize-text";
+import { hiddenWords, wordLengths, wordParts, words } from "@/lib/memorize-text";
 import { holdScreen } from "@/lib/screen-awake";
 import { prepareChime, ringChime } from "@/lib/chime";
 
-type Mode = "ler" | "iniciais" | "decor";
-const MODES: Array<{ key: Mode; label: string }> = [{ key: "ler", label: "Ler" }, { key: "iniciais", label: "Iniciais" }, { key: "decor", label: "De cor" }];
+type Mode = "ler" | "metade" | "maioria" | "decor";
+const MODES: Array<{ key: Mode; label: string; hint: string }> = [
+  { key: "ler", label: "Ler", hint: "Leia a linha com atenção." },
+  { key: "metade", label: "50%", hint: "Etapa 1: metade das palavras escondidas. Recite a linha inteira." },
+  { key: "maioria", label: "80%", hint: "Etapa 2: quase todas as palavras escondidas. Recite a linha inteira." },
+  { key: "decor", label: "De cor", hint: "Etapa 3: recite tudo, sem ajuda." },
+];
+const NEXT: Record<Mode, Mode> = { ler: "metade", metade: "maioria", maioria: "decor", decor: "decor" };
+// Share of words hidden in each stage that hides only part of the line.
+const SHARE: Partial<Record<Mode, number>> = { metade: 0.5, maioria: 0.8 };
 // Right answers in a row, by heart, before suggesting the next line.
 const READY_AFTER = 3;
 // The bell rings once at this mark; the clock keeps counting for whoever wants to go on.
@@ -20,8 +28,9 @@ const BELL_AT_SECONDS = 3 * 60;
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 /**
- * Practice of one text: the new line goes from reading, to first letters, to
- * by heart; three right answers by heart suggest moving to the next line.
+ * Practice of one text: the new line goes from reading, to half of the words
+ * hidden, to 80% hidden, to by heart; three right answers by heart suggest
+ * moving to the next line. Each new try hides other words.
  * The lines already learned stay above it as plain text, to read the new one in
  * context; "Do início" hides them too, to recite everything from the start.
  * A clock starts with the first tap and rings at 3 minutes, but keeps counting.
@@ -34,6 +43,7 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
   const [mode, setMode] = useState<Mode>("ler");
   const [fromStart, setFromStart] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [round, setRound] = useState(0);
   const [streak, setStreak] = useState(0);
   const [editing, setEditing] = useState(false);
   const [finish, setFinish] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -86,18 +96,14 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
     }
   }
 
-  function changeMode(next: Mode) { setMode(next); setRevealed(false); }
+  function changeMode(next: Mode) { setMode(next); setRevealed(false); setRound((value) => value + 1); }
 
   async function answer(right: boolean) {
     if (mode !== "ler") void record(right ? "ACERTOU" : "ERROU");
-    setRevealed(false);
-    if (right) {
-      setStreak((value) => (mode === "decor" ? value + 1 : 0));
-      if (mode !== "decor") changeMode(mode === "ler" ? "iniciais" : "decor");
-    } else {
-      setStreak(0);
-      if (mode === "decor") changeMode("iniciais");
-    }
+    if (right) setStreak((value) => (mode === "decor" ? value + 1 : 0));
+    else setStreak(0);
+    // A miss by heart goes back to the 80% stage; any other try draws new hidden words.
+    changeMode(right ? NEXT[mode] : mode === "decor" ? "maioria" : mode);
   }
 
   async function move(event: "AVANCOU" | "VOLTOU") {
@@ -124,7 +130,8 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
     </Card>
   );
 
-  const hidden = mode === "decor" && !revealed;
+  const hidden = mode !== "ler" && !revealed;
+  const share = SHARE[mode];
   return (
     <div onPointerDownCapture={keepAwake}>
       <div className="mb-4 flex items-center justify-between">
@@ -171,7 +178,8 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
           ) : null}
         </div>
 
-        {!complete && !fromStart && known > 0 ? <p className="mt-4 text-xs font-semibold text-ink/55">Já de cor: leia junto antes da linha nova.</p> : null}
+        <p className="mt-3 text-xs text-ink/60">{MODES.find((item) => item.key === mode)?.hint}</p>
+        {!complete && !fromStart && known > 0 ? <p className="mt-3 text-xs font-semibold text-ink/55">Já de cor: leia junto antes da linha nova.</p> : null}
         <ol className={`${!complete && !fromStart && known > 0 ? "mt-2 space-y-1.5" : "mt-4 space-y-3"}`} aria-live="polite">
           {shown.map((line, index) => {
             const number = index + 1;
@@ -181,7 +189,7 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
               <li key={number} ref={isNew ? newLine : undefined} className={`flex gap-3 rounded-lg ${isNew ? "bg-paper p-3 ring-1 ring-moss/30" : "px-3 py-1"}`}>
                 <span className="mt-0.5 w-5 shrink-0 text-right text-xs font-semibold tabular-nums text-ink/40">{number}</span>
                 <p className={`min-w-0 flex-1 ${isNew ? "text-lg leading-8 font-medium text-ink" : practised ? "text-lg leading-8 text-ink/80" : "text-base leading-7 text-ink/55"}`}>
-                  {!practised ? line : hidden ? <Blanks line={line} /> : mode === "iniciais" ? <span className="tracking-wide">{initials(line)}</span> : line}
+                  {!practised || mode === "ler" ? line : share !== undefined ? <PartlyHidden line={line} share={share} round={round} revealed={revealed} /> : hidden ? <Blanks line={line} /> : line}
                 </p>
               </li>
             );
@@ -191,7 +199,7 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
         {hidden ? (
           <button type="button" onClick={() => setRevealed(true)} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink"><Eye className="h-4 w-4" aria-hidden="true" /> Recitei. Conferir</button>
         ) : mode === "ler" ? (
-          <button type="button" onClick={() => answer(true)} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-semibold text-paper">Li com atenção. Passar às iniciais</button>
+          <button type="button" onClick={() => answer(true)} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-semibold text-paper">Li com atenção. Passar à etapa 1</button>
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button type="button" onClick={() => answer(false)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink"><X className="h-4 w-4" aria-hidden="true" /> Errei</button>
@@ -228,6 +236,29 @@ export function Trainer({ text, hasHabit }: { text: MemorizationText; hasHabit: 
         )
       ) : null}
     </div>
+  );
+}
+
+/** The line with some words as blanks; once checked, those words come back marked. */
+function PartlyHidden({ line, share, round, revealed }: { line: string; share: number; round: number; revealed: boolean }) {
+  const hide = hiddenWords(line, share, round);
+  return (
+    <span aria-label={revealed ? undefined : "Linha com palavras escondidas"}>
+      {words(line).map((word, index) => {
+        const space = index > 0 ? " " : "";
+        if (!hide.has(index)) return <span key={index}>{space}{word}</span>;
+        const [before, core, after] = wordParts(word);
+        return (
+          <span key={index}>
+            {space}{before}
+            {revealed
+              ? <span className="rounded bg-moss/15 px-0.5 text-moss">{core}</span>
+              : <span aria-hidden="true" className="inline-block h-3 rounded-full bg-line align-middle" style={{ width: `${Math.min(10, Math.max(1, core.length)) * 0.55}em` }} />}
+            {after}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
