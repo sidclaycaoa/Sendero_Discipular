@@ -16,3 +16,22 @@ export function Snippet({ text }: { text: string }) {
   const parts = text.split(new RegExp(`(${MARK_START}[^${MARK_END}]*${MARK_END})`, "g"));
   return <>{parts.map((part, index) => part.startsWith(MARK_START) ? <mark key={index} className="rounded-sm bg-[#fbeeb8] px-0.5 font-semibold text-ink">{part.slice(1, -1)}</mark> : part)}</>;
 }
+
+/** Puts a text on the clipboard; where the app view refuses the clipboard, uses the older way. */
+export async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+    document.body.appendChild(area);
+    area.select();
+    area.setSelectionRange(0, text.length);
+    const done = document.execCommand("copy");
+    area.remove();
+    return done;
+  }
+}

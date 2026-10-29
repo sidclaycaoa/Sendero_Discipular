@@ -72,6 +72,16 @@ test("the Caderno keeps notebooks, sections and pages, never loses a text and fi
   assert.equal(db.sqlite.prepare('SELECT plainText FROM "NotePage" WHERE id = ?').get(created.id).plainText, "Os deveres do discípulo pedem constância.");
   assert.equal(count('SELECT COUNT(*) AS n FROM "NotePageVersion" WHERE pageId = ?', created.id), 2);
 
+  // The synthesis is kept apart: it makes no version and does not move the page's "edited" time.
+  const before = db.sqlite.prepare('SELECT updatedAt FROM "NotePage" WHERE id = ?').get(created.id).updatedAt;
+  assert.equal((await act({ action: "saveSynthesis", id: created.id, synthesis: "  O dever vivido com constância.  " })).synthesis, "O dever vivido com constância.");
+  assert.deepEqual({ ...db.sqlite.prepare('SELECT synthesis, updatedAt FROM "NotePage" WHERE id = ?').get(created.id) }, { synthesis: "O dever vivido com constância.", updatedAt: before });
+  assert.equal(count('SELECT COUNT(*) AS n FROM "NotePageVersion" WHERE pageId = ?', created.id), 2);
+  assert.match((await get(`/caderno/pagina/${created.id}`)).text, /Síntese O dever vivido com constância\./);
+  await act({ action: "saveSynthesis", id: created.id, synthesis: "" });
+  assert.equal(db.sqlite.prepare('SELECT synthesis FROM "NotePage" WHERE id = ?').get(created.id).synthesis, null);
+  assert.equal((await act({ action: "saveSynthesis", id: "pg_outra", synthesis: "x" })).status, 400);
+
   // Search ignores accents and finds the start of words ("dever" → "deveres", "discipulo" → "discípulo").
   page = await get(`/caderno/busca?q=${encodeURIComponent("dever discipulo")}`);
   assert.match(page.text, /Páginas do Caderno 1 Bastião 12 · O tempo Os deveres do discípulo pedem constância\. Estudos › Bastiões/);
