@@ -13,6 +13,8 @@
  *   the session and the full password is required again.
  */
 
+import { THEME_BAR, THEME_SCRIPT } from "../lib/theme";
+
 const SESSION_COOKIE = "sendero_sessao";
 const ACTIVE_COOKIE = "sendero_ativo";
 const ATTEMPTS_COOKIE = "sendero_tentativas";
@@ -271,6 +273,8 @@ function gatePage(form: string, status = 200, cookies: string[] = []) {
 <title>Sendero</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg">
+<meta name="theme-color" content="${THEME_BAR.light}">
+<script>${THEME_SCRIPT}</script>
 <style>
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f7f4ed; color: #1f2528;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -290,6 +294,16 @@ function gatePage(form: string, status = 200, cookies: string[] = []) {
   .pad .ok { color: #fff; background: #66704f; border-color: #66704f; font-size: 18px; }
   .alt { margin: 16px 0 0; text-align: center; }
   .alt a { color: #46533b; }
+  /* The dark look chosen in Configurações (lib/theme.ts). */
+  :root[data-theme="dark"] { color-scheme: dark; }
+  [data-theme="dark"] body { background: #161411; color: #ece6da; }
+  [data-theme="dark"] form { background: #24211c; border-color: #3a342c; box-shadow: none; }
+  [data-theme="dark"] p, [data-theme="dark"] .alt a { color: #a3b88a; }
+  [data-theme="dark"] input { background: #1c1a16; color: #ece6da; border-color: #3a342c; }
+  [data-theme="dark"] .pad button { color: #ece6da; background: #1c1a16; border-color: #3a342c; }
+  [data-theme="dark"] .pad button:active { background: #3a342c; }
+  [data-theme="dark"] .pad .ok, [data-theme="dark"] form > button { color: #fff; background: #5b6e48; border-color: #5b6e48; }
+  [data-theme="dark"] .erro { color: #e3906c; }
 </style>
 </head>
 <body>

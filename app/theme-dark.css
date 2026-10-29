@@ -1,0 +1,164 @@
+/*
+ * Dark look (Configurações → Aparência). <html data-theme="dark"> is set by
+ * the script in lib/theme.ts before the page is drawn.
+ *
+ * A warm dark, never pure black, with cream letters. The tokens of globals.css
+ * change here, so text-ink, border-line, bg-paper and their /opacity forms
+ * follow by themselves. Below them, one rule for each fixed color the screens
+ * use; tests/tema.test.mjs fails when a screen uses a color missing here.
+ *
+ * Kept as they are on purpose (strong fills under white text, or already on a
+ * dark surface): bg-emerald-600 bg-emerald-700 bg-emerald-800 bg-red-600
+ * bg-red-700 bg-red-800 bg-amber-500 bg-amber-800 bg-blue-400 bg-blue-500
+ * bg-violet-500 bg-violet-700 bg-violet-800 text-emerald-100 text-amber-200
+ * text-amber-300 text-black border-emerald-600 border-emerald-700 border-red-500
+ * border-amber-500 border-violet-500 border-[#5b8fcc] bg-[#b23a2c] bg-[#2c2622]
+ * border-[#3a322c] border-[#4a3f37] text-[#fbf3ea] text-[#f1e6da] text-[#d9cbbd]
+ * text-[#f6ece2] text-[#b7a493] text-[#f5ead2]
+ */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #161411;
+  --foreground: #ece6da;
+  --color-ink: #ece6da;
+  --color-paper: #1c1a16;
+  --color-line: #3a342c;
+  --color-moss: #a3b88a;
+  --color-olive: #b4bb93;
+  --color-clay: #e3906c;
+  --color-terra: #e3906c;
+  --color-bronze: #cfac70;
+  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.35);
+  --ground: #161411;
+  --page-ink: #e6e0d2;
+  --ring-ed: #e0705f; --ring-ed-track: #4a2420;
+  --ring-psy: #dba63a; --ring-psy-track: #463712;
+  --ring-habit: #84b46a; --ring-habit-track: #2b3a24;
+  --ring-reflection: #a588e6; --ring-reflection-track: #342a4d;
+  --ring-rest: #3a342c;
+  --heat-0: #2a2620; --heat-1: #3a4330; --heat-2: #5e6b47; --heat-3: #8fa06e; --heat-4: #c3d39f;
+  --bar-partial: #4d5640;
+  --tone-good: #6fbf6a; --tone-mid: #dba63a; --tone-low: #e0705f;
+  --wheel-track: #3a342c; --wheel-ahead: #24211c; --wheel-ahead-line: #4a4339; --wheel-ahead-text: #8f887c; --wheel-detail: #a9a294;
+
+  /* Surfaces. bg-ink is a dark block (the top card, the chosen tab, main buttons): it stays dark, one step above the cards. */
+  .bg-white { background-color: #24211c; }
+  .bg-white\/82, .bg-white\/60, .bg-white\/55 { background-color: rgb(36 33 28 / 0.8); }
+  .bg-ink { background-color: #3a342c; }
+  .bg-ink\/55, .bg-ink\/35 { background-color: rgb(0 0 0 / 0.6); }
+  .text-paper { color: #f4efe5; }
+  .text-paper\/45, .text-paper\/55, .text-paper\/60, .text-paper\/65, .text-paper\/70, .text-paper\/75 { color: rgb(244 239 229 / 0.62); }
+  .hover\:text-paper:hover { color: #f4efe5; }
+  .border-ink { border-color: #8a8174; }
+  .text-white { color: #fff; }
+  .bg-moss { background-color: #5b6e48; }
+  .bg-olive { background-color: #66704f; }
+  .bg-clay { background-color: #b85d3b; }
+  .bg-terra { background-color: #c46a3d; }
+  .bg-vase { background-color: #0f0d0b; }
+  .text-vase { color: #ece6da; }
+  .border-vase { border-color: #0f0d0b; }
+  .bg-line { background-color: #4a4339; }
+  .accent-\[\#46533b\] { accent-color: #8fa577; }
+  .accent-\[\#b85d3b\] { accent-color: #e3906c; }
+  .accent-\[\#6b4f3a\] { accent-color: #c49a78; }
+
+  /* Violet: the Tônica and timed habits. */
+  .bg-violet-50 { background-color: #221d2e; }
+  .bg-violet-50\/60 { background-color: #1f1a2a; }
+  .bg-violet-100 { background-color: #2c2540; }
+  .from-violet-50 { --tw-gradient-from: #221d2e; }
+  .to-white { --tw-gradient-to: #1f1a2a; }
+  .border-violet-100, .border-violet-200 { border-color: #3f3556; }
+  .text-violet-700 { color: #c4b2f0; }
+  .text-violet-800 { color: #d0c2f4; }
+  .text-violet-900, .text-violet-950 { color: #e3daf9; }
+  .text-violet-900\/75, .text-violet-900\/80 { color: rgb(227 218 249 / 0.8); }
+
+  /* Green: done, saved, goal reached. */
+  .bg-emerald-50 { background-color: #16251a; }
+  .bg-emerald-100 { background-color: #1d3022; }
+  .border-emerald-200 { border-color: #2c4a33; }
+  .border-emerald-400 { border-color: #3f7a50; }
+  .ring-emerald-300 { --tw-ring-color: #3f7a50; }
+  .ring-emerald-500 { --tw-ring-color: #5fa874; }
+  .focus\:border-emerald-600:focus { border-color: #5fa874; }
+  .text-emerald-700 { color: #86cf9c; }
+  .text-emerald-800 { color: #94d6a8; }
+  .text-emerald-800\/75 { color: rgb(148 214 168 / 0.75); }
+  .text-emerald-900, .text-emerald-950 { color: #bfe6ca; }
+  .text-emerald-900\/75 { color: rgb(191 230 202 / 0.75); }
+
+  /* Red: errors, late, "sair". */
+  .bg-red-50 { background-color: #2c1714; }
+  .bg-red-100 { background-color: #3a1d19; }
+  .border-red-200 { border-color: #5a2b25; }
+  .ring-red-300 { --tw-ring-color: #7a3a32; }
+  .text-red-600, .text-red-700, .text-red-800 { color: #f2a597; }
+  .text-red-600\/80 { color: rgb(242 165 151 / 0.8); }
+  .text-red-900, .text-red-950 { color: #f7c6bc; }
+  .text-rose-700 { color: #f0a2b3; }
+
+  /* Amber, orange, blue, slate. */
+  .bg-amber-50 { background-color: #2a2112; }
+  .bg-amber-50\/40 { background-color: rgb(42 33 18 / 0.6); }
+  .bg-amber-100 { background-color: #372b15; }
+  .border-amber-200, .border-amber-300 { border-color: #5a4620; }
+  .ring-amber-300 { --tw-ring-color: #7a5f28; }
+  .text-amber-800 { color: #efc77e; }
+  .text-amber-900, .text-amber-950 { color: #f4dba6; }
+  .bg-orange-50 { background-color: #2b1d12; }
+  .bg-blue-50 { background-color: #16202c; }
+  .border-blue-300 { border-color: #2e4a66; }
+  .text-blue-700, .text-blue-900 { color: #9cc3ee; }
+  .bg-slate-200 { background-color: #3a3f44; }
+  .text-slate-500 { color: #9aa1a8; }
+  .focus\:border-violet-500:focus { border-color: #a588e6; }
+
+  /* Exact tones written in the screens. */
+  .bg-\[\#fffdf8\], .bg-\[\#fbf9f4\], .bg-\[\#fbf8f1\], .bg-\[\#faf6ec\] { background-color: #24211c; }
+  .bg-\[\#efeae0\], .bg-\[\#ece6da\], .bg-\[\#e3dccd\], .bg-\[\#ebe5d8\], .bg-\[\#e9e3d6\], .bg-\[\#f2efe7\] { background-color: #2c2823; }
+  .border-\[\#f0ebe1\], .divide-\[\#f0ebe1\] > :not(:last-child) { border-color: #2f2a24; }
+  .border-\[\#cfc8b9\], .border-\[\#cfc6b5\], .border-\[\#cbbfa8\], .border-\[\#e8e0cf\] { border-color: #4a4339; }
+  .bg-\[\#fbf5ee\] { background-color: #2a221c; }
+  .border-\[\#e6d6c4\], .border-\[\#f3e2d6\] { border-color: #4a3a2e; }
+  .bg-\[\#f3e2d6\] { background-color: #3a2a20; }
+  .shadow-\[0_0_0_5px_\#f3e2d6\] { --tw-shadow: 0 0 0 5px #3a2a20; }
+  .text-\[\#4a3424\], .text-\[\#3b3224\] { color: #e8d6c2; }
+  .text-\[\#6b5d45\] { color: #b8a888; }
+  .text-\[\#8a6d3b\] { color: #cfac70; }
+  .text-\[\#6b4f3a\] { color: #d2b49a; }
+  .bg-\[\#6b4f3a\] { background-color: #a07a5c; }
+  .bg-\[\#d8cbb6\] { background-color: #4a4136; }
+  .text-\[\#2f6f8f\] { color: #8cc4dd; }
+  .text-\[\#5b8fcc\] { color: #8fb6ee; }
+  .bg-\[\#eef4fb\] { background-color: #1a2330; }
+  .bg-\[\#e9e4f4\] { background-color: #2c2540; }
+  .text-\[\#45386e\] { color: #d0c2f4; }
+  .bg-\[\#f3e7dc\] { background-color: #3a2a1f; }
+  .text-\[\#6d4a2e\] { color: #e3bfa0; }
+  .bg-\[\#fbeeb8\] { background-color: #5c4b14; }
+
+  /* A notebook cover as dark as the page (Frases) keeps its edge. */
+  .caderno-capa { outline: 1px solid rgb(255 255 255 / 0.12); outline-offset: -1px; }
+
+  /* Caderno: note colors brighten to be read on the dark page (the saved text keeps its color);
+     the highlight stays a yellow marker, so its letters turn dark. */
+  .caderno-page [style*="31, 78, 140"], .caderno-page [style*="#1f4e8c" i] { color: #8fb6ee !important; }
+  .caderno-page [style*="47, 107, 58"], .caderno-page [style*="#2f6b3a" i] { color: #8fcf96 !important; }
+  .caderno-page [style*="138, 43, 58"], .caderno-page [style*="#8a2b3a" i] { color: #ef9aa6 !important; }
+  .caderno-page [style*="192, 80, 43"], .caderno-page [style*="#c0502b" i] { color: #f09a76 !important; }
+  .caderno-page [style*="122, 63, 160"], .caderno-page [style*="#7a3fa0" i] { color: #cfa2ee !important; }
+  .caderno-page [style*="31, 127, 166"], .caderno-page [style*="#1f7fa6" i] { color: #86cbe8 !important; }
+  .caderno-page [style*="167, 122, 18"], .caderno-page [style*="#a77a12" i] { color: #e4bf5f !important; }
+  .caderno-page mark, .caderno-page mark * { color: #1f2528 !important; }
+  .caderno-page blockquote { border-left-color: #cfac70; background: #2a2418; }
+  .caderno-page hr { border-top-color: #3a342c; }
+  .caderno-page code { background: #2c2823; }
+  .caderno-page .caderno-date { background: #3a3122; color: #e2c992; }
+  .caderno-page .caderno-date.ProseMirror-selectednode { outline-color: #cfac70; }
+  .caderno-page ul[data-type="taskList"] li > label input { accent-color: #8fa577; }
+  .caderno-page ul[data-type="taskList"] li[data-checked="true"] > div { color: #8f887c; }
+  .caderno-page p.is-editor-empty:first-child::before { color: #6f685d; }
+}

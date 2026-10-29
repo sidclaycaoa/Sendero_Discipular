@@ -7,12 +7,13 @@ import type { ReflectionAttendance } from "@/lib/db/sendero";
 const ATTENDANCE_GOAL = 90;
 
 export const groupStyle: Record<PracticeGroupCode, { label: string; color: string; track: string }> = {
-  ED: { label: "Práticas ED", color: "#b23a2c", track: "#f4dcd8" },
-  PSYCHOLOGY: { label: "Psicologia", color: "#a87600", track: "#f5ead0" },
-  HABIT: { label: "Hábitos", color: "#4f7a3a", track: "#dfe9d6" },
+  ED: { label: "Práticas ED", color: "var(--ring-ed)", track: "var(--ring-ed-track)" },
+  PSYCHOLOGY: { label: "Psicologia", color: "var(--ring-psy)", track: "var(--ring-psy-track)" },
+  HABIT: { label: "Hábitos", color: "var(--ring-habit)", track: "var(--ring-habit-track)" },
 };
 
-const heatShades = ["#ebe6dc", "#d6dcc6", "#a9b48c", "#66704f", "#3a4429"];
+// Colors live in globals.css, so the dark look can swap them.
+const heatShades = ["var(--heat-0)", "var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)"];
 
 export function TodayRings({ groups, reflections }: { groups: PercursoData["today"]["groups"]; reflections: { done: number; total: number } }) {
   const rings = [
@@ -20,7 +21,7 @@ export function TodayRings({ groups, reflections }: { groups: PercursoData["toda
       id: group.code, label: groupStyle[group.code].label, color: groupStyle[group.code].color, track: groupStyle[group.code].track,
       value: group.total ? `${group.done}/${group.total}` : "—", ratio: group.ratio,
     })),
-    { id: "REFLECTION", label: "Reflexões e Diário", color: "#6a46b8", track: "#e6ddf6", value: `${reflections.done}/${reflections.total}`, ratio: reflections.total ? reflections.done / reflections.total : 0 },
+    { id: "REFLECTION", label: "Reflexões e Diário", color: "var(--ring-reflection)", track: "var(--ring-reflection-track)", value: `${reflections.done}/${reflections.total}`, ratio: reflections.total ? reflections.done / reflections.total : 0 },
   ];
   return (
     <Card className="mt-4">
@@ -41,9 +42,9 @@ function Ring({ label, value, ratio, color, track }: { id: string; label: string
   return (
     <div className="flex flex-col items-center gap-1.5">
       <svg viewBox="0 0 74 74" className="h-[68px] w-[68px]" role="img" aria-label={`${label}: ${value}`}>
-        <circle cx="37" cy="37" r="30" fill="none" stroke={track} strokeWidth="8" />
-        <circle cx="37" cy="37" r="30" fill="none" stroke={color} strokeWidth="8" strokeLinecap={filled > 0 ? "round" : "butt"} strokeDasharray={`${filled} ${circumference}`} transform="rotate(-90 37 37)" />
-        <text x="37" y="42" textAnchor="middle" fontSize="15" fontWeight="700" fill="#1f2528">{value}</text>
+        <circle cx="37" cy="37" r="30" fill="none" style={{ stroke: track }} strokeWidth="8" />
+        <circle cx="37" cy="37" r="30" fill="none" style={{ stroke: color }} strokeWidth="8" strokeLinecap={filled > 0 ? "round" : "butt"} strokeDasharray={`${filled} ${circumference}`} transform="rotate(-90 37 37)" />
+        <text x="37" y="42" textAnchor="middle" fontSize="15" fontWeight="700" className="fill-ink">{value}</text>
       </svg>
       <span className="text-center text-xs font-semibold leading-4 text-ink/75">{label}</span>
     </div>
@@ -77,7 +78,7 @@ export function PercursoSections({ data }: { data: PercursoData }) {
         <div role="img" aria-label={`Mapa de presença: ${data.heatmap.presentDays30} dias com registros nos últimos 30 dias; mais escuro, mais presença`} className="mt-1 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${data.heatmap.weeks.length}, minmax(0, 1fr))` }}>
           {data.heatmap.weeks.map((week, column) => (
             <div key={column} className="grid gap-[3px]">
-              {week.map((day) => <span key={day.date} title={day.date} className="block aspect-square rounded-[2px]" style={day.future ? { boxShadow: "inset 0 0 0 1px #ded7ca" } : { background: heatShades[day.level] }} />)}
+              {week.map((day) => <span key={day.date} title={day.date} className="block aspect-square rounded-[2px]" style={day.future ? { boxShadow: "inset 0 0 0 1px var(--color-line)" } : { background: heatShades[day.level] }} />)}
             </div>
           ))}
         </div>
@@ -132,7 +133,7 @@ export function PercursoSections({ data }: { data: PercursoData }) {
           {data.monthly.map((month) => (
             <div key={month.month} className="flex h-full flex-col items-center justify-end gap-1">
               <span className="text-[11px] font-semibold text-ink/75">{month.count}</span>
-              <div className="w-full rounded-t-md rounded-b-sm" style={{ height: `${Math.max(3, Math.round(month.count / maxMonthly * 100))}px`, background: month.partial ? "#c9d1b4" : "#66704f" }} />
+              <div className="w-full rounded-t-md rounded-b-sm" style={{ height: `${Math.max(3, Math.round(month.count / maxMonthly * 100))}px`, background: month.partial ? "var(--bar-partial)" : "var(--color-olive)" }} />
             </div>
           ))}
         </div>
@@ -167,7 +168,7 @@ export function PercursoSections({ data }: { data: PercursoData }) {
 
 export function AttendanceCard({ current, previous }: { current: ReflectionAttendance; previous: ReflectionAttendance }) {
   const percent = current.percent ?? 0;
-  const tone = percent >= ATTENDANCE_GOAL ? { text: "text-emerald-800", bar: "#2f6b2a" } : percent >= 70 ? { text: "text-amber-800", bar: "#a87600" } : { text: "text-red-800", bar: "#b23a2c" };
+  const tone = percent >= ATTENDANCE_GOAL ? { text: "text-emerald-800", bar: "var(--tone-good)" } : percent >= 70 ? { text: "text-amber-800", bar: "var(--tone-mid)" } : { text: "text-red-800", bar: "var(--tone-low)" };
   const missing = Math.max(0, Math.ceil(current.due * ATTENDANCE_GOAL / 100) - current.done);
   const delta = current.percent !== null && previous.percent !== null ? current.percent - previous.percent : null;
   return (

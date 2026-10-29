@@ -23,6 +23,11 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   - tudo fica atrás de senha mais PIN (`worker/auth.ts`); o PIN tem **teclado próprio**, porque o teclado do iPhone às vezes não abre em apps instalados;
   - notificações nunca mostram conteúdo de reflexões.
 - **Tela acesa ao escrever:** enquanto um campo de texto estiver com o cursor (Diário, reflexões, Caderno), `components/app/KeepAwake.tsx` segura a tela com o mesmo recurso das práticas (`lib/screen-awake.ts`: wake lock + vídeo mudo), digitando ou ditando (o ditado do iPhone quase não gera eventos de tecla). Volta a segurar quando o app é reaberto com o cursor num campo; solta 5 min depois de sair do campo, ou após 30 min sem escrever nada.
+- **Modo escuro:** Configurações → **Aparência** (Claro, Escuro ou Automático, que segue o iPhone). A escolha fica num cookie do celular (`sendero_tema`, sem banco), lida por um script no `<head>` antes de desenhar a tela (`lib/theme.ts`), que põe `data-theme="dark"` no `<html>` e troca a cor da barra do iPhone; a tela de senha e PIN segue a mesma escolha. Começa em Claro.
+  - As cores escuras ficam em `app/theme-dark.css`: os tokens (`ink`, `paper`, `line`, `moss`...) mudam ali, e cada cor fixa das telas (`bg-white`, `bg-emerald-50`, `text-[#6b4f3a]`...) tem a sua regra. `bg-ink` continua um bloco escuro; `text-paper` continua claro.
+  - Cores desenhadas pelas telas (anéis do dia, mapa de calor, roda da Jornada, página do Caderno) são variáveis em `app/globals.css` (`--ring-ed`, `--heat-0`, `--page-ink`...), com o lado escuro em `app/theme-dark.css`.
+  - **Tela nova com cor fixa:** `tests/tema.test.mjs` falha se uma classe de cor não tiver versão escura; acrescente a regra em `app/theme-dark.css` ou ponha a classe na lista "mantidas" do topo do arquivo.
+  - No Caderno, as cores de anotação e comentário clareiam no escuro (o texto salvo não muda); o destaque continua marca-texto amarelo com letra escura.
 - **Pendências do app** têm "Copiar todas", para colar as abertas numa conversa.
 - **Telas:**
   - folhas que sobem da base usam `components/app/Sheet.tsx` (que ignora o toque que a abriu);
@@ -88,8 +93,7 @@ Cada pacote é feito numa conversa nova. Antes de começar, confira em `/pendenc
 
 **Pacote B: Memorização** — entregue (#11: etapas 50%, 80% e de cor no lugar das iniciais; ver Memorização acima). #12 "Uma passagem para hoje" e #13 cronômetro/revisões já estavam entregues. Conferir no iPhone e marcar os três como resolvidos em `/pendencias`.
 
-**Pacote C: modo escuro** (Sonnet)
-- **#5** Claro, escuro ou automático, com chave em Configurações. Mostrar uma maquete antes.
+**Pacote C: modo escuro** — entregue (#5; maquete aprovada em 29/10/2026; ver "Modo escuro" acima). Conferir no iPhone e marcar como resolvida em `/pendencias`.
 
 **Pacote D: futuro** (Opus)
 - **Desenho e formas no Caderno:** um toque abre uma tela de desenho (triângulo, círculo, seta, linha, texto); ao salvar, vira um bloquinho no meio do texto, guardado como SVG no banco, e um toque nele reabre a edição.

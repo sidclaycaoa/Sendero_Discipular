@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Database, Download, KeyRound, LogOut, Settings, Shield, SlidersHorizontal } from "lucide-react";
 import { AppShell, Card, ModuleHeader, Pill } from "@/components/app/AppShell";
+import { AppearanceCard } from "@/components/configuracoes/AppearanceCard";
 import { RemindersPanel } from "@/components/configuracoes/RemindersPanel";
 import { listReminders, REMINDER_KINDS } from "@/lib/db/lembretes";
 import { getActiveUser, getHabitDashboard, getReflectionStats } from "@/lib/db/sendero";
@@ -20,6 +21,8 @@ export default async function ConfiguracoesPage() {
         description="Perfil, categorias, reflexões atuais, exportação, privacidade e preparação para IA."
         action={<Settings className="h-6 w-6 text-olive" />}
       />
+
+      <AppearanceCard />
 
       <RemindersPanel reminders={reminders} kinds={REMINDER_KINDS} />
 
