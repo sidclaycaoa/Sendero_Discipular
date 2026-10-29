@@ -1,4 +1,4 @@
-# Sendero — estado atual (atualizado em 18/10/2026)
+# Sendero — estado atual (atualizado em 29/10/2026)
 
 Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que já existe**, **como se trabalha** e **o que está na fila**.
 
@@ -77,6 +77,35 @@ Leia junto com `CLAUDE.md` e `docs/dossie-sendero.md`. Este arquivo diz **o que 
   - **Frases e passagens** `/caderno/frases` (`lib/db/frases.ts`, tabela `Passage`): caderno especial, criado também para quem já tinha cadernos; cada frase é **citação literal** (autor e obra obrigatórios) ou **minha síntese**, nunca misturadas; dos livros do AD, o trecho escolhido tem de ser igual ao do índice (`indexedPassage`), e o texto e a fonte não se editam, só a nota; filtro por autor; "Memorizar" cria um texto com uma frase por linha; arquivo e busca junto com o Caderno.
 - **Menu de baixo:** Início, Refletir, Hábitos, Agenda e Caderno. O **Diário** abre pelo "play" do hábito "Escrever o Diário" (ferramenta `DIARIO`) e pelo cartão do Início.
 - **Diário** `/diario`, **Mestre** `/mestre`, **Pendências do app** `/pendencias`, **Configurações** `/configuracoes` (lembretes).
+
+## Pacotes das Pendências de 29/10/2026 (um pacote por conversa, um PR por pacote)
+
+Cada pacote é feito numa conversa nova. Antes de começar, confira em `/pendencias` (ou no código) se algum item já foi resolvido.
+
+**Pacote A: bugs e editor do Caderno** (Sonnet)
+- **#1 Tela apaga ao ditar no Diário.** O ditado do iPhone quase não gera eventos de digitação, então o prazo de 5 min sem digitar vence. A tela deve ficar acesa enquanto um campo de texto estiver com foco, não só depois de cada tecla, e voltar a segurar ao reabrir o app. Valer para Diário, Refletir e Caderno.
+- **#9 Texto some ao chegar no fim da página do Caderno.** Ao digitar perto do teclado e da barra de formatação, a página deve rolar para manter o cursor visível.
+- **#10 Recuo.** Tab e Shift-Tab, ou botões, para subtópicos em vários níveis. O botão de citação (") não parece funcionar: conferir.
+- **#7 Botão "⋯" na barra de formatação** para abrir mais opções: cor da letra, sublinhado, tachado, alinhamento e outros.
+- **#6 Duas paletas de cor sempre visíveis**, uma para "anotação" e outra para "comentário da anotação", e escolha de fonte (2 ou 3 opções servidas pelo app, sem custo).
+- **#3 Botões no topo da página:** "Copiar tudo" (texto puro) e outros úteis.
+- **#4 Marca de data:** um botão insere no texto uma marquinha com a data do dia (ex.: "29/out"), para separar o que foi escrito em dias diferentes sobre o mesmo tema.
+- **#2 Síntese da página:** um campo "Síntese" recolhível no topo e um botão "Copiar para a IA", que copia um pedido de síntese junto com o texto da página. O usuário cola a resposta da IA de volta no campo. Nada de IA dentro do app.
+
+**Pacote B: Memorização** (Sonnet)
+- **#11 Etapas:** depois da leitura, em vez de só as iniciais, a etapa 1 esconde 50% das palavras, a etapa 2 esconde 80% e a etapa 3 pede para recitar tudo. (#12 "Uma passagem para hoje" e #13 cronômetro/revisões já foram entregues; conferir e fechar.)
+
+**Pacote C: modo escuro** (Sonnet)
+- **#5** Claro, escuro ou automático, com chave em Configurações. Mostrar uma maquete antes.
+
+**Pacote D: futuro** (Opus)
+- **Desenho e formas no Caderno:** um toque abre uma tela de desenho (triângulo, círculo, seta, linha, texto); ao salvar, vira um bloquinho no meio do texto, guardado como SVG no banco, e um toque nele reabre a edição.
+- **Offline (#8):**
+  - o texto escrito sem conexão fica guardado no celular, com o aviso "não enviado";
+  - o envio só acontece quando o usuário toca em "Enviar agora";
+  - se a página mudou no servidor nesse meio-tempo, o app guarda as duas versões e nunca sobrescreve.
+  - Sem Android ou APK: o app instalado no iPhone basta.
+- **Fotos e anexos:** raros, por último.
 
 ## Fila (ordem combinada)
 
