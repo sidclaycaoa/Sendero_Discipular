@@ -44,7 +44,7 @@ export function AppShell({ children, showDailyTonic = true }: { children: ReactN
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fffaf0_0,#f7f4ed_34%,#ece5d7_100%)] text-ink">
+    <div className="app-ground min-h-screen text-ink">
       <LockGuard onReturn={onReturn} />
       <KeepAwake />
       {visiblePendingHref ? <div className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-clay" aria-hidden="true" /> : null}

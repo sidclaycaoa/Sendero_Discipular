@@ -60,7 +60,7 @@ export function JornadaScreen({ data, todayKey }: { data: JourneyData; todayKey:
         <h2 className="mt-1 font-myth text-2xl font-semibold text-ink">{myth.title}</h2>
         <p className="mt-1 text-sm leading-6 text-ink/70">{myth.summary}</p>
         <div className="relative mt-3">
-          <span className="absolute bottom-6 left-[27px] top-6 w-0.5 bg-[repeating-linear-gradient(to_bottom,#ded7ca_0_6px,transparent_6px_11px)]" aria-hidden="true" />
+          <span className="absolute bottom-6 left-[27px] top-6 w-0.5 bg-[repeating-linear-gradient(to_bottom,var(--color-line)_0_6px,transparent_6px_11px)]" aria-hidden="true" />
           {data.path.map((station) => (
             <button key={station.labor.id} type="button" onClick={() => setOpen({ kind: "labor", labor: station.labor, elixir: station.elixir })} className="relative grid w-full grid-cols-[56px_minmax(0,1fr)] items-center gap-3 py-1.5 text-left">
               <Medal number={station.labor.position} state={station.state} />
@@ -288,7 +288,7 @@ function Wheel({ index, label, detail }: { index: number; label: string; detail:
   const portion = (index + 0.5) / STAGES.length;
   return (
     <svg viewBox="0 0 132 132" className="h-[132px] w-[132px]" role="img" aria-label={`Etapa ${index + 1} de 7: ${label}`}>
-      <circle cx="66" cy="66" r={r} fill="none" stroke="#efeae0" strokeWidth="6" />
+      <circle cx="66" cy="66" r={r} fill="none" style={{ stroke: "var(--wheel-track)" }} strokeWidth="6" />
       <circle cx="66" cy="66" r={r} fill="none" stroke="#c46a3d" strokeWidth="6" strokeLinecap="round" strokeDasharray={`${circumference * portion} ${circumference}`} transform="rotate(-90 66 66)" />
       {STAGES.map((stage, i) => {
         const angle = -Math.PI / 2 + (i / STAGES.length) * 2 * Math.PI;
@@ -298,13 +298,13 @@ function Wheel({ index, label, detail }: { index: number; label: string; detail:
         const done = i < index;
         return (
           <g key={stage.name}>
-            <circle cx={x} cy={y} r={now ? 10 : 8} fill={now ? "#c46a3d" : done ? "#1d1a17" : "#ffffff"} stroke={now || done ? "#1d1a17" : "#ded7ca"} strokeWidth={now ? 2 : 1.5} />
-            <text x={x} y={y + 3.4} textAnchor="middle" fontSize={now ? 10 : 9} fontWeight="700" fill={now ? "#1d1a17" : done ? "#c46a3d" : "#8a8d89"}>{i + 1}</text>
+            <circle cx={x} cy={y} r={now ? 10 : 8} style={{ fill: now ? "#c46a3d" : done ? "#1d1a17" : "var(--wheel-ahead)", stroke: now || done ? "#1d1a17" : "var(--wheel-ahead-line)" }} strokeWidth={now ? 2 : 1.5} />
+            <text x={x} y={y + 3.4} textAnchor="middle" fontSize={now ? 10 : 9} fontWeight="700" style={{ fill: now ? "#1d1a17" : done ? "#c46a3d" : "var(--wheel-ahead-text)" }}>{i + 1}</text>
           </g>
         );
       })}
-      <text x="66" y="64" textAnchor="middle" fontSize="13" fontWeight="700" fill="#1f2528" fontFamily="'Cormorant SC', Georgia, serif">{label}</text>
-      <text x="66" y="78" textAnchor="middle" fontSize="9.5" fill="#5c6164">{detail}</text>
+      <text x="66" y="64" textAnchor="middle" fontSize="13" fontWeight="700" className="fill-ink" fontFamily="'Cormorant SC', Georgia, serif">{label}</text>
+      <text x="66" y="78" textAnchor="middle" fontSize="9.5" style={{ fill: "var(--wheel-detail)" }}>{detail}</text>
     </svg>
   );
 }

@@ -483,7 +483,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         ) : null}
         <div className="flex items-center gap-0.5 overflow-x-auto pb-1" aria-label="Cores">
           <span className={`${label} mr-0.5`}>Anotação</span>
-          {NOTE_COLORS.map((color) => <Swatch key={color.name} name={`Anotação: ${color.name.toLowerCase()}`} color={color.value ?? "#22261f"} on={active.color === color.value} run={() => setColor(color.value)} />)}
+          {NOTE_COLORS.map((color) => <Swatch key={color.name} name={`Anotação: ${color.name.toLowerCase()}`} color={color.value ?? "var(--page-ink)"} on={active.color === color.value} run={() => setColor(color.value)} />)}
           <span className="mx-1 h-5 w-px shrink-0 bg-line" />
           <span className={`${label} mr-0.5`}>Comentário</span>
           {COMMENT_COLORS.map((color) => <Swatch key={color.name} name={`Comentário: ${color.name.toLowerCase()}`} color={color.value} on={active.color === color.value} run={() => setColor(color.value)} />)}

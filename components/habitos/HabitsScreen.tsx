@@ -150,7 +150,7 @@ export function HabitsScreen({ dashboard, ideas = [] }: Props) {
     {error ? <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
 
     <section className="mt-3 flex items-center gap-3 rounded-2xl border border-line bg-white p-3 shadow-soft">
-      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#46533b ${daily.length ? (doneToday / daily.length) * 360 : 0}deg, #ece6da 0deg)` }}>
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(var(--color-moss) ${daily.length ? (doneToday / daily.length) * 360 : 0}deg, var(--ring-rest) 0deg)` }}>
         <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-xs font-bold text-ink">{doneToday}/{daily.length}</span>
       </div>
       <div className="min-w-0 flex-1">
@@ -210,7 +210,7 @@ function HabitRow({ habit, late, onTap, onOpen }: { habit: DbHabit; late: boolea
       {habit.cadence === "TIME_BASED" ? (
         <button type="button" onClick={onTap} aria-label={`Registrar tempo: ${habit.title}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet-50 text-violet-700"><Clock3 className="h-4 w-4" /></button>
       ) : counted && !done ? (
-        <button type="button" onClick={onTap} aria-label={`Somar 1: ${habit.title}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#46533b ${share * 360}deg, #e7e1d5 0deg)` }}>
+        <button type="button" onClick={onTap} aria-label={`Somar 1: ${habit.title}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(var(--color-moss) ${share * 360}deg, var(--ring-rest) 0deg)` }}>
           <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-[10px] font-bold text-ink">{habit.progress}/{habit.targetCount}</span>
         </button>
       ) : (

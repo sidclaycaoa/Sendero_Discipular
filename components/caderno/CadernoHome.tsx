@@ -51,7 +51,7 @@ export function CadernoHome({ notebooks, recent, archived }: { notebooks: Notebo
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-olive">Cadernos</h2>
         <div className="grid grid-cols-2 gap-2.5">
           {notebooks.map((notebook) => (
-            <Link prefetch={false} key={notebook.id} href={notebook.kind === "FRASES" ? "/caderno/frases" : `/caderno/${notebook.id}`} className="flex min-h-[92px] flex-col justify-between rounded-[6px_14px_14px_6px] py-3 pl-[18px] pr-3 text-white shadow-[inset_6px_0_0_rgba(0,0,0,0.22),0_6px_14px_rgba(31,37,40,0.12)]" style={{ background: notebook.color }}>
+            <Link prefetch={false} key={notebook.id} href={notebook.kind === "FRASES" ? "/caderno/frases" : `/caderno/${notebook.id}`} className="flex min-h-[92px] flex-col justify-between rounded-[6px_14px_14px_6px] py-3 pl-[18px] pr-3 caderno-capa text-white shadow-[inset_6px_0_0_rgba(0,0,0,0.22),0_6px_14px_rgba(31,37,40,0.12)]" style={{ background: notebook.color }}>
               <strong className="text-[14.5px] font-semibold leading-tight">{notebook.name}</strong>
               <small className="text-[11.5px] text-white/80">{counts(notebook)}</small>
             </Link>
