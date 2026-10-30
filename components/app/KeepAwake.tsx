@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
-import { holdScreen } from "@/lib/screen-awake";
+import { holdScreen, type ScreenHold } from "@/lib/screen-awake";
 
 // Same limit as the PIN lock (LOCK_AFTER_MS in worker/auth.ts): after leaving a text field,
 // the screen stays on this long and then may sleep.
 const AFTER_LEAVING_MS = 5 * 60 * 1000;
 // A field left with the cursor in it and nothing written for this long (phone forgotten on the table).
 const FORGOTTEN_MS = 30 * 60 * 1000;
+// While the cursor is in a field, the hold is checked this often: dictation sends almost no
+// events, and turning the microphone on can stop what keeps the screen on.
+const CHECK_EVERY_MS = 10 * 1000;
 
 const isWritingField = (target: EventTarget | null) =>
   target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && (target.type === "text" || target.type === "search")) || (target instanceof HTMLElement && target.isContentEditable);
@@ -23,7 +26,7 @@ const writing = () => isWritingField(document.activeElement);
  */
 export function KeepAwake() {
   useEffect(() => {
-    let release: (() => void) | null = null;
+    let release: ScreenHold | null = null;
     // The phone stops the video while the app is hidden; the next tap starts it afresh.
     let stale = false;
     let timer: number | undefined;
@@ -34,7 +37,8 @@ export function KeepAwake() {
     }
     function hold() {
       if (stale) { letGo(); stale = false; }
-      release ??= holdScreen();
+      if (release) release.renew();
+      else release = holdScreen();
       window.clearTimeout(timer);
       timer = window.setTimeout(letGo, FORGOTTEN_MS);
     }
@@ -55,6 +59,9 @@ export function KeepAwake() {
     function onWriting(event: Event) {
       if (isWritingField(event.target)) hold();
     }
+    const check = window.setInterval(() => {
+      if (release && writing() && document.visibilityState === "visible") release.renew();
+    }, CHECK_EVERY_MS);
     function onVisible() {
       if (document.visibilityState === "hidden") { stale = Boolean(release); return; }
       if (!writing()) return;
@@ -77,6 +84,7 @@ export function KeepAwake() {
       document.removeEventListener("keydown", onWriting);
       document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(timer);
+      window.clearInterval(check);
       letGo();
     };
   }, []);
