@@ -38,7 +38,7 @@ export function KeepAwake() {
     function hold() {
       if (stale) { letGo(); stale = false; }
       if (release) release.renew();
-      else release = holdScreen();
+      else release = holdScreen({ mix: true });
       window.clearTimeout(timer);
       timer = window.setTimeout(letGo, FORGOTTEN_MS);
     }

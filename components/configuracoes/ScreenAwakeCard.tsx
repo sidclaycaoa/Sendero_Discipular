@@ -28,6 +28,7 @@ export function ScreenAwakeCard() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">Tela acesa ao escrever</p>
           <p className="mt-1 text-sm leading-6 text-ink/65">{detail}</p>
+          {status?.video !== undefined ? <p className="mt-1 text-sm leading-6 text-ink/65">{status.video ? "Reforço (vídeo silencioso): tocando." : "Reforço (vídeo silencioso): o iPhone não deixou tocar."}</p> : null}
           {old ? <p className="mt-1 text-sm leading-6 text-ink/65">Este iPhone está no iOS {ios}. No app instalado, a trava só funciona a partir do iOS 18.4: Ajustes › Geral › Atualização de Software.</p> : null}
           <p className="mt-1 text-xs leading-5 text-ink/55">Com o Modo Pouca Energia ligado, o iPhone pode apagar mais cedo.</p>
         </div>
