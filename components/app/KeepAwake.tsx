@@ -38,7 +38,7 @@ export function KeepAwake() {
     function hold() {
       if (stale) { letGo(); stale = false; }
       if (release) release.renew();
-      else release = holdScreen();
+      else release = holdScreen({ mix: true });
       window.clearTimeout(timer);
       timer = window.setTimeout(letGo, FORGOTTEN_MS);
     }
@@ -70,7 +70,11 @@ export function KeepAwake() {
       stale = true;
     }
 
+    // The touch that ends (and the click after it) is what lets Safari grant the hold; dictation
+    // right after tapping into a field brings no key to ask again.
     document.addEventListener("pointerdown", onTap, true);
+    document.addEventListener("touchend", onTap, true);
+    document.addEventListener("click", onTap, true);
     document.addEventListener("focusin", onFocus);
     document.addEventListener("focusout", onLeave);
     document.addEventListener("input", onWriting);
@@ -78,6 +82,8 @@ export function KeepAwake() {
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       document.removeEventListener("pointerdown", onTap, true);
+      document.removeEventListener("touchend", onTap, true);
+      document.removeEventListener("click", onTap, true);
       document.removeEventListener("focusin", onFocus);
       document.removeEventListener("focusout", onLeave);
       document.removeEventListener("input", onWriting);
