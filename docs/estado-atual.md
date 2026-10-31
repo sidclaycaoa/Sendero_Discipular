@@ -106,6 +106,8 @@ Cada pacote é feito numa conversa nova. Antes de começar, confira em `/pendenc
 
 ## Fila (ordem combinada)
 
+0. **Multiusuário (teste com 5 pessoas, depois talvez nacional):** plano em `docs/multiusuario.md` (pacotes M1, M2, M3).
+
 1. **Refino da Jornada** (depois de o usuário viver o primeiro mês):
    - pergunta do mês dentro do Diário ("como foi o confronto com o monstro hoje?");
    - escolher as armas de cada trabalho (hoje são todas as práticas diárias da ED);
