@@ -3,6 +3,7 @@ import { Database, Download, KeyRound, LogOut, Settings, Shield, SlidersHorizont
 import { AppShell, Card, ModuleHeader, Pill } from "@/components/app/AppShell";
 import { AppearanceCard } from "@/components/configuracoes/AppearanceCard";
 import { RemindersPanel } from "@/components/configuracoes/RemindersPanel";
+import { ScreenAwakeCard } from "@/components/configuracoes/ScreenAwakeCard";
 import { listReminders, REMINDER_KINDS } from "@/lib/db/lembretes";
 import { getActiveUser, getHabitDashboard, getReflectionStats } from "@/lib/db/sendero";
 
@@ -23,6 +24,8 @@ export default async function ConfiguracoesPage() {
       />
 
       <AppearanceCard />
+
+      <ScreenAwakeCard />
 
       <RemindersPanel reminders={reminders} kinds={REMINDER_KINDS} />
 

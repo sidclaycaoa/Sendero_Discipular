@@ -12,26 +12,49 @@
  * Both can be taken away while the hold is on (iPhone dictation turns the
  * microphone on, which can stop the page's video; the system may drop the wake
  * lock), so each one starts again by itself, and renew() checks both.
+ *
+ * Safari grants the first wake lock of a page only right after a tap or a key
+ * (a touch counts when it ends, not when it starts). A request refused for
+ * lack of one must never hold back the next, so requests are not queued
+ * behind each other; once one is granted, later ones need no tap.
  */
 type Sentinel = { release: () => Promise<void>; addEventListener?: (type: "release", listener: () => void) => void };
 export type ScreenHold = (() => void) & { renew: () => void };
 type WakeLockApi = { request: (type: "screen") => Promise<Sentinel> };
 
+/** What happened to the last request, kept on the phone so Configurações can show it. */
+export type ScreenAwakeStatus = { supported: boolean; held: boolean; at: string; refused?: string };
+const STATUS_KEY = "sendero_tela_acesa";
+let current: ScreenAwakeStatus | null = null;
+
+function note(status: Omit<ScreenAwakeStatus, "at">) {
+  current = { ...status, at: new Date().toISOString() };
+  try { localStorage.setItem(STATUS_KEY, JSON.stringify(current)); } catch { /* private mode: shown only now */ }
+}
+
+export function readScreenAwakeStatus(): ScreenAwakeStatus | null {
+  if (current) return current;
+  try { return JSON.parse(localStorage.getItem(STATUS_KEY) ?? "null") as ScreenAwakeStatus | null; } catch { return null; }
+}
+
 export function holdScreen(): ScreenHold {
   const wakeLock = (navigator as unknown as { wakeLock?: WakeLockApi }).wakeLock;
   let sentinel: Sentinel | null = null;
-  let asking = false;
   let active = true;
+  if (!wakeLock) note({ supported: false, held: false });
 
   const ask = () => {
-    if (!wakeLock || !active || sentinel || asking || document.visibilityState !== "visible") return;
-    asking = true;
+    if (!wakeLock || !active || sentinel || document.visibilityState !== "visible") return;
     wakeLock.request("screen").then((granted) => {
-      if (!active) { void granted.release().catch(() => undefined); return; }
+      // Not wanted any more, or another request got there first.
+      if (!active || sentinel) { void granted.release().catch(() => undefined); return; }
       sentinel = granted;
+      note({ supported: true, held: true });
       // Dropped by the system (app hidden, or for its own reasons): asked again while still on screen.
       granted.addEventListener?.("release", () => { if (sentinel === granted) sentinel = null; ask(); });
-    }).catch(() => undefined).finally(() => { asking = false; });
+    }).catch((error: unknown) => {
+      if (active && !sentinel) note({ supported: true, held: false, refused: error instanceof Error ? error.message : String(error) });
+    });
   };
   const play = () => {
     if (active && video.paused && document.visibilityState === "visible") void video.play().catch(() => undefined);
